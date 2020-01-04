@@ -1,0 +1,68 @@
+First measurments of the query in miliseconds:
+
+times:
+6497, 6485, 6457, 6452, 6485, 6407, 6528, 6483, 6456, 6432
+mean: 6468
+std: 35
+
+So is is almost the same.
+
+Playing:
+
+- added unique on battle team and opponent separately, it made no difference
+- postgres is stubborn in performing joins b -> t1 -> t2 -> tm.
+  Maybe it does not "push" equalities when analyzing query.
+- According to documentation, https://www.postgresql.org/docs/9.3/runtime-config-query.html#GUC-GEQO-THRESHOLD,
+  it should do exhaustive serach on join order.
+- I have set statistics level to maximum on b.team_id, b.opponentteam_id, tm.team_id, t.id.
+  This is 10000, instead of 100. Now it far more precisley captures, that all those
+  heavy joins with team tables will produce a few rows (predicts 5, there are 4).
+- Since it loves seqscans, I tried 'SET enable_seqscan TO false;'. This couldn't have worked.
+  I have started to think if I could tell postgres, that join t1, t2 with teammember will
+  produce a small number of rows. This would amount to saying teammember.team_id is almost unique.
+- I have added unique on teammember.(player, team) to no avail. Then I have created index on those columns.
+  I have raised statistics on teammember.player_id. My rational was that now it will fetch teams
+  for teammember_player via this index. It doesn't. I have rune analyze, nothing changed.
+- I have dropped player_id index on teammember. It started to use my new index on two columns,
+  still doing those awful joins. Disabling materialize just changed it to nested loop.
+- Adding hash index on team.id made things x2 worse. I have dropped it. Only postgres 10 has
+  some real support for hash indices.
+- I have set random_page_cost to 1. It reduces times to around 5800. It has replaced one
+  team seq scan to index scan. I guess new machine has SSD (Mr. Bass has mentioned database
+  class machine will be used - a realtively new one).
+- Last two things I will try are sections planner options and other planner options.
+  Postgres has no hints - https://wiki.postgresql.org/wiki/Todo#Features_We_Do_Not_Want.
+  I have tried disabling various planner subplans like hashjoin or materialize.
+  Nothing has forced it to apply OR filter first. It always has it on top, even
+  though it knows it will drop almost 10 milion rows to fetch only 4.
+
+
+So I have failed. I sadly have a lot of other things to do (math bachelors degree paper,
+advanced oeprating systems, deep neural networks and stochastic processes), so I guess
+I have to accept this failure.
+
+Now I am thinking if my idea with separating PVP and TVT to different tables wouldn't have
+helped. This way, on PvP there could be an unique constraint, and maybe then it would just
+find by index teams for teammember.
+
+Only random_page_cost to 1 has worked, otherwise query planer does all it can to
+continue do to joins the way it does them. Removing the OR results in microseconds
+performance, as expected.
+
+
+--- query below for me to copy when working on this
+
+\set PLAYER_ID 447265
+
+SELECT
+    b.* 
+FROM
+    battle AS b,
+    team AS t1,
+    team AS t2,
+    teammember AS tm
+WHERE
+    t1.id = b.team_id AND
+    t2.id = b.opponentteam_id AND
+    (tm.team_id = t1.id OR tm.team_id = t2.id) AND
+    tm.player_id = :'PLAYER_ID';

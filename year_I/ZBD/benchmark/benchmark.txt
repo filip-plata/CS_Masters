@@ -1,0 +1,80 @@
+Q13_5_union_all.sql and Q13_1_original.sql are equivalent as was noted in labs.
+Now we will look into main controversy. Let us think of relational algebra.
+
+Let us by S denote result of Q13_2. To get rows of Q13_1, we have to do join with
+Team table - this is equivalent to Q13_1. So if A is results of Q13_1, we have:
+
+S <> Team, t.id = b.team_id = A
+
+Note that in S b.team_id is already present, and since Team.id is a primary key
+it is unique and not null, so we cannot produce more than one row for each row of S. So we would
+have to produce less rows for queries not to be equivalent. This means we have
+b.team_id, which is not present in t.id. But this is not possible, because b.team_id
+is a foreign key, not nullable.
+
+Maybe lack of equivalence steems from another thing. If we look at relational algebra,
+the last thing to do is projection on columns of battle. Only then we know Team is
+not needed, it is highly non local property - we could have 10k lines on SQL, and top
+expression would say some table is not needed. This kind of optimalization would require
+tracking which columns are needed for every node in expression tree.
+
+Now we will look into Q13_3 aka full path. By chaning it in equivalent way, we could
+say Q13_3 result's called R satisfies:
+
+S <> team t1.id = b.team_id <> team t2.id = b.opponentteam_id = R
+
+(we push equalities to OR paranthesis). Again, in S we already have battle, so
+we have one one row in t1 and t2 to add for every row of S, we return the same set
+of rows.
+
+I have checked with my version of postgres 10.7. Query planer is not that smart for Q13_3,
+it does SEQ SCAN on battle, which is a total failure.
+
+So at least for Q13_4 I will do some real work - Q13_4 drops duplicates, so it does
+something different than all other queries. On this data we would have a duplicate:
+
+Battle	  	    	     team  	teammember
+team_id    opponnet_id	     id		player_id	team_id
+1	   1		     1		447265		1
+
+Q13_4 would return one row on this one, and other queries exactly two.
+
+Anyhow, this exercise suggest we have to add a lot of constraints to the database.
+Unique, and so forth. This should be easy, we have model in python, so after
+adding definitions it can print new constraints of the db. Some of thw stuff
+like b.team_id being unique is only in our heads, like team_id <> opponent_id.
+Teammember has unique (player_id, team_id).
+
+Now measurments in miliseconds. 6 for each query.
+
+Q13_1:
+20748.831, 16316.035, 16602.351, 18177.498, 20676.558, 21291.476
+
+seems like hot/cold has no effect.
+mean: 18968
+sd: 2224
+result: 19000 +- 2224
+
+Q13_2:
+0.352, 0.401, 0.371, 0.375, 0.368, 0.379
+
+mean: 0.374
+sd: 0.016
+
+Q13_3:
+18034.005, 19906.521, 22297.968, 22976.524, 15001.525, 21253.816
+
+mean: 19911
+sd: 2984
+
+Q13_4:
+9849.978, 10029.985, 10016.992, 9800.366, 10035.555, 9347.799
+
+mean: 9846
+sd: 264
+
+Q13_5:
+9828.997, 9839.015, 9855.524, 9812.806, 9189.474, 7439.759
+
+mean: 9327
+sd: 960

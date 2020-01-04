@@ -1,0 +1,4 @@
+import requests
+import json
+r=requests.get("https://api.clashroyale.com/v1/players/%238R9U9PJCR", headers={"Accept":"application/json", "authorization":"Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjlmM2NhYjdjLWEwYTEtNGMyMi1iOWJlLTBhZjJhMTNjYzE3NiIsImlhdCI6MTU1MTE5NTM2MCwic3ViIjoiZGV2ZWxvcGVyLzA1OGIyZWUzLTM5NDctYjhkYy0xOTQ4LTU5OWJkNjM1NWUyMCIsInNjb3BlcyI6WyJyb3lhbGUiXSwibGltaXRzIjpbeyJ0aWVyIjoiZGV2ZWxvcGVyL3NpbHZlciIsInR5cGUiOiJ0aHJvdHRsaW5nIn0seyJjaWRycyI6WyI4OS43Mi45Mi43NiJdLCJ0eXBlIjoiY2xpZW50In1dfQ.wfqfNPEXuj2HY94ANc4cuCvjsw5i0GeLml-wFftFKi76QzvBDjyKiXoPHhGdO4EyzdC_xBDvPv4eMPe99mIBrw"}, params = {"limit":20})
+print(json.dumps(r.json(), indent = 2))

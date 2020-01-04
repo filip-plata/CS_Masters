@@ -1,0 +1,1314 @@
+From ae489fdc4220bee4a1b1228cb668b3dd39a068fe Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Mon, 3 Jun 2019 20:11:01 +0200
+Subject: [PATCH 1/7] Changing implementation to core_param_array
+
+---
+ include/linux/lense.h           |  13 +++
+ include/linux/sched.h           |   2 +
+ include/linux/uaccess.h         |   3 +
+ include/uapi/linux/capability.h |   5 +-
+ kernel/Makefile                 |   2 +
+ kernel/fork.c                   |   2 +
+ kernel/lense.c                  | 159 ++++++++++++++++++++++++++++++++
+ mm/memory.c                     |   2 +
+ mm/nommu.c                      |   2 +
+ mm/page_alloc.c                 |   2 +
+ 10 files changed, 191 insertions(+), 1 deletion(-)
+ create mode 100644 include/linux/lense.h
+ create mode 100644 kernel/lense.c
+
+diff --git a/include/linux/lense.h b/include/linux/lense.h
+new file mode 100644
+index 000000000000..6be3d511b455
+--- /dev/null
++++ b/include/linux/lense.h
+@@ -0,0 +1,13 @@
++#ifndef _LENSE_H_
++#define _LENSE_H_
++
++#include <linux/types.h>
++
++struct lense_info {
++        uint64_t used_words_mask;
++};
++
++void lense_info_init(struct lense_info *);
++void look_through_lense_on_operation(void *, size_t);
++
++#endif // _LENSE_H_
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 291a9bd5b97f..7407d4936e4e 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -29,6 +29,7 @@
+ #include <linux/mm_types_task.h>
+ #include <linux/task_io_accounting.h>
+ #include <linux/rseq.h>
++#include <linux/lense.h>
+ 
+ /* task_struct member predeclarations (sorted alphabetically): */
+ struct audit_context;
+@@ -884,6 +885,7 @@ struct task_struct {
+ 	struct callback_head		*task_works;
+ 
+ 	struct audit_context		*audit_context;
++	struct lense_info		lense;
+ #ifdef CONFIG_AUDITSYSCALL
+ 	kuid_t				loginuid;
+ 	unsigned int			sessionid;
+diff --git a/include/linux/uaccess.h b/include/linux/uaccess.h
+index efe79c1cdd47..35a369eeecea 100644
+--- a/include/linux/uaccess.h
++++ b/include/linux/uaccess.h
+@@ -5,6 +5,7 @@
+ #include <linux/sched.h>
+ #include <linux/thread_info.h>
+ #include <linux/kasan-checks.h>
++#include <linux/lense.h>
+ 
+ #define VERIFY_READ 0
+ #define VERIFY_WRITE 1
+@@ -145,12 +146,14 @@ copy_from_user(void *to, const void __user *from, unsigned long n)
+ {
+ 	if (likely(check_copy_size(to, n, false)))
+ 		n = _copy_from_user(to, from, n);
++	look_through_lense_on_operation(to, n);
+ 	return n;
+ }
+ 
+ static __always_inline unsigned long __must_check
+ copy_to_user(void __user *to, const void *from, unsigned long n)
+ {
++	look_through_lense_on_operation((void *) from, n);
+ 	if (likely(check_copy_size(from, n, true)))
+ 		n = _copy_to_user(to, from, n);
+ 	return n;
+diff --git a/include/uapi/linux/capability.h b/include/uapi/linux/capability.h
+index 240fdb9a60f6..0bd5776ab0fb 100644
+--- a/include/uapi/linux/capability.h
++++ b/include/uapi/linux/capability.h
+@@ -366,8 +366,11 @@ struct vfs_ns_cap_data {
+ 
+ #define CAP_AUDIT_READ		37
+ 
++/* Disallow tracking of wrong user behaviour */
+ 
+-#define CAP_LAST_CAP         CAP_AUDIT_READ
++#define CAP_SYS_SOCZEWKA_IMMUNE		38
++
++#define CAP_LAST_CAP         CAP_SYS_SOCZEWKA_IMMUNE
+ 
+ #define cap_valid(x) ((x) >= 0 && (x) <= CAP_LAST_CAP)
+ 
+diff --git a/kernel/Makefile b/kernel/Makefile
+index 7343b3a9bff0..5709ba448d3c 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -117,6 +117,8 @@ obj-$(CONFIG_HAS_IOMEM) += iomem.o
+ obj-$(CONFIG_ZONE_DEVICE) += memremap.o
+ obj-$(CONFIG_RSEQ) += rseq.o
+ 
++obj-y += lense.o
++
+ obj-$(CONFIG_GCC_PLUGIN_STACKLEAK) += stackleak.o
+ KASAN_SANITIZE_stackleak.o := n
+ KCOV_INSTRUMENT_stackleak.o := n
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 906cd0c13d15..42d84e3579c6 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -92,6 +92,7 @@
+ #include <linux/livepatch.h>
+ #include <linux/thread_info.h>
+ #include <linux/stackleak.h>
++#include <linux/lense.h>
+ 
+ #include <asm/pgtable.h>
+ #include <asm/pgalloc.h>
+@@ -1810,6 +1811,7 @@ static __latent_entropy struct task_struct *copy_process(
+ 	spin_lock_init(&p->alloc_lock);
+ 
+ 	init_sigpending(&p->pending);
++	lense_info_init(&p->lense);
+ 
+ 	p->utime = p->stime = p->gtime = 0;
+ #ifdef CONFIG_ARCH_HAS_SCALED_CPUTIME
+diff --git a/kernel/lense.c b/kernel/lense.c
+new file mode 100644
+index 000000000000..bf3b208f7780
+--- /dev/null
++++ b/kernel/lense.c
+@@ -0,0 +1,159 @@
++#include <linux/kernel.h>
++#include <linux/lense.h>
++#include <linux/capability.h>
++#include <linux/printk.h>
++#include <linux/string.h>
++#include <linux/sched.h>
++#include <linux/cred.h>
++#include <linux/moduleparam.h>
++#include <linux/spinlock.h>
++
++#define MAX_WORD_LENGTH                 64
++#define MAX_SUSPICIOUS_WORDS            64
++#define DATA_DUMP_BACK_LIMIT            0x100
++#define DATA_DUMP_FORWARD_LIMIT         0x100
++#define DATA_DUMP_ROW_SIZE              0x10
++#define DATA_DUMP_GROUP_SIZE            0x1
++
++#define hxd_buf_s(X) (4 * X + 3)
++
++#define core_param_array(name, type, nump, perm)		\
++	core_param_array_named(name, name, type, nump, perm)
++
++#define core_param_array_named(name, array, type, nump, perm)		\
++	param_check_##type(name, &(array)[0]);				\
++	static const struct kparam_array __param_arr_##name		\
++	= { .max = ARRAY_SIZE(array), .num = nump,                      \
++	    .ops = &param_ops_##type,					\
++	    .elemsize = sizeof(array[0]), .elem = array };		\
++	__module_param_call("", name,			\
++			    &param_array_ops,				\
++			    .arr = &__param_arr_##name,			\
++			    perm, -1, 0);				\
++	__MODULE_PARM_TYPE(name, "array of " #type)
++
++static char *soczewka[MAX_SUSPICIOUS_WORDS];
++static size_t lense_words_len[MAX_SUSPICIOUS_WORDS];
++static int lense_words_count;
++
++/*
++static inline bool push_word(char *c)
++{
++        static const char sep = ',';
++        return *c == sep || *c == '\0';
++}
++
++static int lense_setup(char *words)
++{
++        char *c = words;
++        size_t letter = 0, i;
++
++        if (!c)
++                return 0;
++
++        while (true) {
++                if (push_word(c)) {
++                        lense_words_count++;
++                        if (*(c++) == '\0')
++                                break;
++                        letter = 0;
++                }
++                if (letter >= MAX_WORD_LENGTH ||
++                    lense_words_count >= MAX_SUSPICIOUS_WORDS)
++                        return 0;
++
++                lense_words[lense_words_count][letter++] = *(c++);
++        }
++
++        for (i = 0; i < lense_words_count; i++)
++                lense_words_len[i] = strlen(lense_words[i]);
++
++        return 1;
++}
++__setup("soczewka=", lense_setup);
++*/
++core_param_array(soczewka, charp, &lense_words_count, 0);
++
++static DEFINE_SPINLOCK(dump_lock);
++
++/* Arguments mean how many characters before and after words are valid */
++static void inform_of_incident(char *buf,
++        size_t back_limit, size_t forward_limit, size_t word_idx)
++{
++        static char hxd_before[hxd_buf_s(DATA_DUMP_BACK_LIMIT)];
++        static char hxd_after[hxd_buf_s(DATA_DUMP_FORWARD_LIMIT)];
++
++        struct task_struct *t = current;
++
++        size_t hxd_before_s, hxd_after_s;
++
++        spin_lock(&dump_lock);
++
++        // hex_dump_to_buffer cuts the output at 32 lines
++        // It is why forward chars are ok, and backward show first data in
++        // page that could be random rubbish
++        hxd_before_s = hex_dump_to_buffer(
++                buf - back_limit, back_limit,
++                DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
++                hxd_before, sizeof(hxd_before), false);
++        hxd_after_s = hex_dump_to_buffer(
++                buf + lense_words_len[word_idx], forward_limit,
++                DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
++                hxd_after, sizeof(hxd_after), false);
++
++        printk(KERN_INFO "soczewka: PID %d UID %d GID %d %.*s before [%s] after [%s]",
++                task_pid_nr(t), current_uid().val, current_gid().val,
++                (int) lense_words_len[word_idx], buf, hxd_before, hxd_after);
++
++        spin_unlock(&dump_lock);
++}
++
++static inline bool word_already_used(const struct lense_info *lense, size_t word_idx)
++{
++        return lense->used_words_mask & (1ULL << word_idx);
++}
++
++static inline void mark_word_used(struct lense_info *lense, size_t word_idx)
++{
++        lense->used_words_mask |= (1ULL << word_idx);
++}
++
++static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx)
++{
++        const size_t word_len = lense_words_len[word_idx];
++        int64_t off;
++        len -= word_len;
++
++        for (off = 0; off <= len; off++) {
++                if (strncmp(buf + off, soczewka[word_idx], word_len) == 0) {
++                        inform_of_incident(
++                                buf + off, min(off, (int64_t) DATA_DUMP_BACK_LIMIT),
++                                min(len - off, (int64_t) DATA_DUMP_FORWARD_LIMIT),
++                                word_idx);
++                        return true;
++                }
++        }
++
++        return false;
++}
++
++void lense_info_init(struct lense_info *lense)
++{
++        memset(&lense->used_words_mask, '\0', sizeof(uint64_t));
++}
++
++void look_through_lense_on_operation(void *buf, size_t len)
++{
++        size_t word_idx;
++        struct task_struct *t = current;
++
++        if (has_capability(t, CAP_SYS_SOCZEWKA_IMMUNE))
++                return;
++
++        for (word_idx = 0; word_idx < lense_words_count; word_idx++) {
++                if (word_already_used(&t->lense, word_idx))
++                        continue;
++                if (look_for_word_on_operation((char *) buf, (int64_t) len, word_idx))
++                        mark_word_used(&t->lense, word_idx);
++        }
++}
+diff --git a/mm/memory.c b/mm/memory.c
+index 59c00ae6b928..1ebfce885ecd 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1062,6 +1062,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 			struct page *page;
+ 
+ 			page = _vm_normal_page(vma, addr, ptent, true);
++
+ 			if (unlikely(details) && page) {
+ 				/*
+ 				 * unmap_shared_mapping_pages() wants to
+@@ -1077,6 +1078,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 			tlb_remove_tlb_entry(tlb, pte, addr);
+ 			if (unlikely(!page))
+ 				continue;
++			look_through_lense_on_operation(page_to_virt(page), PAGE_SIZE);
+ 
+ 			if (!PageAnon(page)) {
+ 				if (pte_dirty(ptent)) {
+diff --git a/mm/nommu.c b/mm/nommu.c
+index 749276beb109..957acf10f7de 100644
+--- a/mm/nommu.c
++++ b/mm/nommu.c
+@@ -35,6 +35,7 @@
+ #include <linux/syscalls.h>
+ #include <linux/audit.h>
+ #include <linux/printk.h>
++#include <linux/lense.h>
+ 
+ #include <linux/uaccess.h>
+ #include <asm/tlb.h>
+@@ -602,6 +603,7 @@ static void free_page_series(unsigned long from, unsigned long to)
+ {
+ 	for (; from < to; from += PAGE_SIZE) {
+ 		struct page *page = virt_to_page(from);
++		look_through_lense_on_operation(from, PAGE_SIZE);
+ 
+ 		atomic_long_dec(&mmap_pages_allocated);
+ 		put_page(page);
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index a29043ea9212..b4c20b6a1c6e 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -66,6 +66,7 @@
+ #include <linux/lockdep.h>
+ #include <linux/nmi.h>
+ #include <linux/psi.h>
++#include <linux/lense.h>
+ 
+ #include <asm/sections.h>
+ #include <asm/tlbflush.h>
+@@ -2837,6 +2838,7 @@ void free_unref_page_list(struct list_head *list)
+ 
+ 	local_irq_save(flags);
+ 	list_for_each_entry_safe(page, next, list, lru) {
++		look_through_lense_on_operation(page_to_virt(page), PAGE_SIZE);
+ 		unsigned long pfn = page_private(page);
+ 
+ 		set_page_private(page, 0);
+-- 
+2.20.1
+
+
+From facdb5c7651759a37f7c5aa745da0a62051d087e Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Mon, 3 Jun 2019 21:13:01 +0200
+Subject: [PATCH 2/7] Ugly printing
+
+---
+ kernel/lense.c | 82 +++++++++++++++-----------------------------------
+ 1 file changed, 25 insertions(+), 57 deletions(-)
+
+diff --git a/kernel/lense.c b/kernel/lense.c
+index bf3b208f7780..f539e1894856 100644
+--- a/kernel/lense.c
++++ b/kernel/lense.c
+@@ -17,6 +17,7 @@
+ 
+ #define hxd_buf_s(X) (4 * X + 3)
+ 
++/* Core param has sadly no array version */
+ #define core_param_array(name, type, nump, perm)		\
+ 	core_param_array_named(name, name, type, nump, perm)
+ 
+@@ -36,76 +37,41 @@ static char *soczewka[MAX_SUSPICIOUS_WORDS];
+ static size_t lense_words_len[MAX_SUSPICIOUS_WORDS];
+ static int lense_words_count;
+ 
+-/*
+-static inline bool push_word(char *c)
++static inline size_t get_word_len(int word_idx)
+ {
+-        static const char sep = ',';
+-        return *c == sep || *c == '\0';
++        if (unlikely(lense_words_len[word_idx] == 0))
++                lense_words_len[word_idx] = strlen(soczewka[word_idx]);
++        return lense_words_len[word_idx];
+ }
+ 
+-static int lense_setup(char *words)
+-{
+-        char *c = words;
+-        size_t letter = 0, i;
+-
+-        if (!c)
+-                return 0;
+-
+-        while (true) {
+-                if (push_word(c)) {
+-                        lense_words_count++;
+-                        if (*(c++) == '\0')
+-                                break;
+-                        letter = 0;
+-                }
+-                if (letter >= MAX_WORD_LENGTH ||
+-                    lense_words_count >= MAX_SUSPICIOUS_WORDS)
+-                        return 0;
+-
+-                lense_words[lense_words_count][letter++] = *(c++);
+-        }
+-
+-        for (i = 0; i < lense_words_count; i++)
+-                lense_words_len[i] = strlen(lense_words[i]);
+-
+-        return 1;
+-}
+-__setup("soczewka=", lense_setup);
+-*/
+ core_param_array(soczewka, charp, &lense_words_count, 0);
+ 
+-static DEFINE_SPINLOCK(dump_lock);
+-
+-/* Arguments mean how many characters before and after words are valid */
++/* Arguments mean how many characters before and after word are valid */
+ static void inform_of_incident(char *buf,
+         size_t back_limit, size_t forward_limit, size_t word_idx)
+ {
+-        static char hxd_before[hxd_buf_s(DATA_DUMP_BACK_LIMIT)];
+-        static char hxd_after[hxd_buf_s(DATA_DUMP_FORWARD_LIMIT)];
++        static DEFINE_SPINLOCK(lense_alert_lock);
+ 
+         struct task_struct *t = current;
+ 
+-        size_t hxd_before_s, hxd_after_s;
++        size_t word_len = get_word_len(word_idx);
+ 
+-        spin_lock(&dump_lock);
++        spin_lock(&lense_alert_lock);
+ 
+-        // hex_dump_to_buffer cuts the output at 32 lines
+-        // It is why forward chars are ok, and backward show first data in
+-        // page that could be random rubbish
+-        hxd_before_s = hex_dump_to_buffer(
+-                buf - back_limit, back_limit,
+-                DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
+-                hxd_before, sizeof(hxd_before), false);
+-        hxd_after_s = hex_dump_to_buffer(
+-                buf + lense_words_len[word_idx], forward_limit,
+-                DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
+-                hxd_after, sizeof(hxd_after), false);
+-
+-        printk(KERN_INFO "soczewka: PID %d UID %d GID %d %.*s before [%s] after [%s]",
++        printk(KERN_INFO "soczewka: PID %d UID %d GID %d %.*s",
+                 task_pid_nr(t), current_uid().val, current_gid().val,
+-                (int) lense_words_len[word_idx], buf, hxd_before, hxd_after);
+-
+-        spin_unlock(&dump_lock);
++                (int) word_len, buf);
++                
++        print_hex_dump(KERN_CONT, "", DUMP_PREFIX_NONE,
++		    DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
++                    buf - back_limit, back_limit, true);
++        printk(KERN_CONT "] after [");
++        print_hex_dump(KERN_CONT, "", DUMP_PREFIX_NONE,
++        	    DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
++                    buf + word_len, forward_limit, true);
++        printk(KERN_CONT "]");
++
++        spin_unlock(&lense_alert_lock);
+ }
+ 
+ static inline bool word_already_used(const struct lense_info *lense, size_t word_idx)
+@@ -120,12 +86,14 @@ static inline void mark_word_used(struct lense_info *lense, size_t word_idx)
+ 
+ static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx)
+ {
+-        const size_t word_len = lense_words_len[word_idx];
++        const size_t word_len = get_word_len(word_idx);
+         int64_t off;
+         len -= word_len;
+ 
+         for (off = 0; off <= len; off++) {
+                 if (strncmp(buf + off, soczewka[word_idx], word_len) == 0) {
++                        printk(KERN_DEBUG "detected %.*s\n", (int) word_len, buf + off);
++                        printk(KERN_DEBUG "count %d\n", lense_words_count);
+                         inform_of_incident(
+                                 buf + off, min(off, (int64_t) DATA_DUMP_BACK_LIMIT),
+                                 min(len - off, (int64_t) DATA_DUMP_FORWARD_LIMIT),
+-- 
+2.20.1
+
+
+From 8d8cc476f1abeb4a073cf6841970d1f97d5ec343 Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Mon, 3 Jun 2019 23:31:31 +0200
+Subject: [PATCH 3/7] Changed hex dump to a more sophisticated one
+
+---
+ kernel/lense.c | 58 ++++++++++++++++++++++++++++++++++----------------
+ 1 file changed, 40 insertions(+), 18 deletions(-)
+
+diff --git a/kernel/lense.c b/kernel/lense.c
+index f539e1894856..132c6d1b9cf0 100644
+--- a/kernel/lense.c
++++ b/kernel/lense.c
+@@ -14,6 +14,9 @@
+ #define DATA_DUMP_FORWARD_LIMIT         0x100
+ #define DATA_DUMP_ROW_SIZE              0x10
+ #define DATA_DUMP_GROUP_SIZE            0x1
++#define DATA_BUF_SIZE    3 * (DATA_DUMP_BACK_LIMIT + DATA_DUMP_FORWARD_LIMIT) \
++                         + MAX_WORD_LENGTH + 128
++#define KERN_LENSE       KERN_INFO
+ 
+ #define hxd_buf_s(X) (4 * X + 3)
+ 
+@@ -46,32 +49,52 @@ static inline size_t get_word_len(int word_idx)
+ 
+ core_param_array(soczewka, charp, &lense_words_count, 0);
+ 
++int lense_dump_hex_dump(char *dest_buf, const unsigned char *buf, size_t len)
++{
++        int i;
++
++	for (i = 0; i < len; i++) {
++                dest_buf[3 * i] = hex_asc_hi(buf[i]);
++                dest_buf[3 * i + 1] = hex_asc_lo(buf[i]);
++                dest_buf[3 * i + 2] = ' ';
++        }
++
++        /* removing last space */
++        if (len > 0)
++                dest_buf[3 * len - 1] = '\0';
++
++        return len <= 0 ? 0 : 3 * len - 1;
++}
++
+ /* Arguments mean how many characters before and after word are valid */
+ static void inform_of_incident(char *buf,
+         size_t back_limit, size_t forward_limit, size_t word_idx)
+ {
+-        static DEFINE_SPINLOCK(lense_alert_lock);
+-
+-        struct task_struct *t = current;
++        static DEFINE_SPINLOCK(data_buf_lock);
++        static char data_buf[DATA_BUF_SIZE];
++        int buf_off = 0;
+ 
+         size_t word_len = get_word_len(word_idx);
+ 
+-        spin_lock(&lense_alert_lock);
++        spin_lock(&data_buf_lock);
+ 
+-        printk(KERN_INFO "soczewka: PID %d UID %d GID %d %.*s",
+-                task_pid_nr(t), current_uid().val, current_gid().val,
++        buf_off += sprintf(data_buf + buf_off, "soczewka: PID %d UID %d GID %d %.*s",
++                task_pid_nr(current), current_uid().val, current_gid().val,
+                 (int) word_len, buf);
+-                
+-        print_hex_dump(KERN_CONT, "", DUMP_PREFIX_NONE,
+-		    DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
+-                    buf - back_limit, back_limit, true);
+-        printk(KERN_CONT "] after [");
+-        print_hex_dump(KERN_CONT, "", DUMP_PREFIX_NONE,
+-        	    DATA_DUMP_ROW_SIZE, DATA_DUMP_GROUP_SIZE,
+-                    buf + word_len, forward_limit, true);
+-        printk(KERN_CONT "]");
+-
+-        spin_unlock(&lense_alert_lock);
++
++        printk(KERN_LENSE "%s", data_buf); buf_off = 0;
++
++        buf_off += sprintf(data_buf + buf_off, " before [");
++        buf_off += lense_dump_hex_dump(data_buf + buf_off, buf - back_limit, back_limit);
++
++        printk(KERN_LENSE "%s", data_buf); buf_off = 0;
++        buf_off += sprintf(data_buf + buf_off, "] after [");
++        buf_off += lense_dump_hex_dump(data_buf + buf_off, buf + word_len, forward_limit);
++        buf_off += sprintf(data_buf + buf_off, "]");
++
++        printk(KERN_LENSE "%s", data_buf);
++
++        spin_unlock(&data_buf_lock);
+ }
+ 
+ static inline bool word_already_used(const struct lense_info *lense, size_t word_idx)
+@@ -93,7 +116,6 @@ static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx)
+         for (off = 0; off <= len; off++) {
+                 if (strncmp(buf + off, soczewka[word_idx], word_len) == 0) {
+                         printk(KERN_DEBUG "detected %.*s\n", (int) word_len, buf + off);
+-                        printk(KERN_DEBUG "count %d\n", lense_words_count);
+                         inform_of_incident(
+                                 buf + off, min(off, (int64_t) DATA_DUMP_BACK_LIMIT),
+                                 min(len - off, (int64_t) DATA_DUMP_FORWARD_LIMIT),
+-- 
+2.20.1
+
+
+From 5a9463ba6091a207c5de81bf909a4f612e666252 Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Sun, 9 Jun 2019 22:47:08 +0200
+Subject: [PATCH 4/7] Fixing bad task_Structs
+
+---
+ include/linux/lense.h |  3 ++
+ kernel/lense.c        | 87 +++++++++++++++++++++++++++++++++++--------
+ mm/hugetlb.c          |  1 +
+ mm/memory.c           |  4 +-
+ mm/page_alloc.c       |  2 +-
+ mm/vmscan.c           |  2 +
+ 6 files changed, 82 insertions(+), 17 deletions(-)
+
+diff --git a/include/linux/lense.h b/include/linux/lense.h
+index 6be3d511b455..08ae093dcf50 100644
+--- a/include/linux/lense.h
++++ b/include/linux/lense.h
+@@ -2,6 +2,7 @@
+ #define _LENSE_H_
+ 
+ #include <linux/types.h>
++#include <linux/mm_types.h>
+ 
+ struct lense_info {
+         uint64_t used_words_mask;
+@@ -9,5 +10,7 @@ struct lense_info {
+ 
+ void lense_info_init(struct lense_info *);
+ void look_through_lense_on_operation(void *, size_t);
++void look_through_lense_page_all_tasks(struct page *, size_t);
++void look_through_lense_on_current_task_page(struct page *, size_t);
+ 
+ #endif // _LENSE_H_
+diff --git a/kernel/lense.c b/kernel/lense.c
+index 132c6d1b9cf0..673341ad4218 100644
+--- a/kernel/lense.c
++++ b/kernel/lense.c
+@@ -7,6 +7,8 @@
+ #include <linux/cred.h>
+ #include <linux/moduleparam.h>
+ #include <linux/spinlock.h>
++#include <linux/highmem.h>
++#include <linux/rmap.h>
+ 
+ #define MAX_WORD_LENGTH                 64
+ #define MAX_SUSPICIOUS_WORDS            64
+@@ -36,6 +38,12 @@
+ 			    perm, -1, 0);				\
+ 	__MODULE_PARM_TYPE(name, "array of " #type)
+ 
++
++struct page_info {
++        void *addr;
++        size_t len;
++};
++
+ static char *soczewka[MAX_SUSPICIOUS_WORDS];
+ static size_t lense_words_len[MAX_SUSPICIOUS_WORDS];
+ static int lense_words_count;
+@@ -68,7 +76,8 @@ int lense_dump_hex_dump(char *dest_buf, const unsigned char *buf, size_t len)
+ 
+ /* Arguments mean how many characters before and after word are valid */
+ static void inform_of_incident(char *buf,
+-        size_t back_limit, size_t forward_limit, size_t word_idx)
++        size_t back_limit, size_t forward_limit, size_t word_idx,
++        struct task_struct *task)
+ {
+         static DEFINE_SPINLOCK(data_buf_lock);
+         static char data_buf[DATA_BUF_SIZE];
+@@ -79,20 +88,24 @@ static void inform_of_incident(char *buf,
+         spin_lock(&data_buf_lock);
+ 
+         buf_off += sprintf(data_buf + buf_off, "soczewka: PID %d UID %d GID %d %.*s",
+-                task_pid_nr(current), current_uid().val, current_gid().val,
++                task_pid_nr(task), task_uid(task).val, task->real_cred->gid.val,
+                 (int) word_len, buf);
+ 
+-        printk(KERN_LENSE "%s", data_buf); buf_off = 0;
++        printk(KERN_LENSE "%s", data_buf);
++        buf_off = 0;
+ 
+         buf_off += sprintf(data_buf + buf_off, " before [");
+         buf_off += lense_dump_hex_dump(data_buf + buf_off, buf - back_limit, back_limit);
++        buf_off += sprintf(data_buf + buf_off, "]");
+ 
+-        printk(KERN_LENSE "%s", data_buf); buf_off = 0;
+-        buf_off += sprintf(data_buf + buf_off, "] after [");
++        printk(KERN_CONT "%s", data_buf);
++        buf_off = 0;
++
++        buf_off += sprintf(data_buf + buf_off, "after [");
+         buf_off += lense_dump_hex_dump(data_buf + buf_off, buf + word_len, forward_limit);
+         buf_off += sprintf(data_buf + buf_off, "]");
+ 
+-        printk(KERN_LENSE "%s", data_buf);
++        printk(KERN_CONT "%s", data_buf);
+ 
+         spin_unlock(&data_buf_lock);
+ }
+@@ -107,7 +120,8 @@ static inline void mark_word_used(struct lense_info *lense, size_t word_idx)
+         lense->used_words_mask |= (1ULL << word_idx);
+ }
+ 
+-static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx)
++static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx,
++        struct task_struct *t)
+ {
+         const size_t word_len = get_word_len(word_idx);
+         int64_t off;
+@@ -119,7 +133,7 @@ static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx)
+                         inform_of_incident(
+                                 buf + off, min(off, (int64_t) DATA_DUMP_BACK_LIMIT),
+                                 min(len - off, (int64_t) DATA_DUMP_FORWARD_LIMIT),
+-                                word_idx);
++                                word_idx, t);
+                         return true;
+                 }
+         }
+@@ -127,15 +141,17 @@ static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx)
+         return false;
+ }
+ 
+-void lense_info_init(struct lense_info *lense)
+-{
+-        memset(&lense->used_words_mask, '\0', sizeof(uint64_t));
+-}
+ 
+-void look_through_lense_on_operation(void *buf, size_t len)
++static void look_through_lense_on_operation_task(
++        void *buf, size_t len, struct task_struct *t)
+ {
+         size_t word_idx;
+-        struct task_struct *t = current;
++
++        if (unlikely(lense_words_count > MAX_SUSPICIOUS_WORDS)) {
++                printk(KERN_ERR "Too many words to check for: %d",
++                        lense_words_count);
++                return;
++        }
+ 
+         if (has_capability(t, CAP_SYS_SOCZEWKA_IMMUNE))
+                 return;
+@@ -143,7 +159,48 @@ void look_through_lense_on_operation(void *buf, size_t len)
+         for (word_idx = 0; word_idx < lense_words_count; word_idx++) {
+                 if (word_already_used(&t->lense, word_idx))
+                         continue;
+-                if (look_for_word_on_operation((char *) buf, (int64_t) len, word_idx))
++                if (look_for_word_on_operation(
++                        (char *) buf, (int64_t) len, word_idx, t))
+                         mark_word_used(&t->lense, word_idx);
+         }
+ }
++
++void lense_info_init(struct lense_info *lense)
++{
++        memset(&lense->used_words_mask, '\0', sizeof(uint64_t));
++}
++
++void look_through_lense_on_operation(void *buf, size_t len)
++{
++        look_through_lense_on_operation_task(buf, len, current);
++}
++
++void look_through_lense_on_current_task_page(struct page *page, size_t len)
++{
++        void *addr = kmap_atomic(page);
++        look_through_lense_on_operation(addr, len);
++        kunmap_atomic(addr);
++}
++
++static bool rmap_walk_lense(struct page *page, struct vm_area_struct *vma,
++        unsigned long addr, void *arg)
++{
++        struct page_info *p_i = arg;
++        look_through_lense_on_operation_task(
++                p_i->addr, p_i->len, vma->vm_mm->owner);
++        return true;
++}
++
++void look_through_lense_page_all_tasks(struct page *page, size_t len)
++{
++        struct page_info p_i = {
++                .addr = kmap_atomic(page),
++                .len = len,
++        };
++        struct rmap_walk_control rwc = {
++                .arg = &p_i,
++                .rmap_one = rmap_walk_lense,
++        };
++        rmap_walk(page, &rwc);
++        kunmap_atomic(p_i.addr);
++}
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index c5c708c83af0..cf272e654de3 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -3419,6 +3419,7 @@ void __unmap_hugepage_range(struct mmu_gather *tlb, struct vm_area_struct *vma,
+ 
+ 		hugetlb_count_sub(pages_per_huge_page(h), mm);
+ 		page_remove_rmap(page, true);
++		//look_through_lense_on_current_task_page(page, huge_page_size(h));
+ 
+ 		spin_unlock(ptl);
+ 		tlb_remove_page_size(tlb, page, huge_page_size(h));
+diff --git a/mm/memory.c b/mm/memory.c
+index 1ebfce885ecd..42aabcf7e03b 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1078,7 +1078,6 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 			tlb_remove_tlb_entry(tlb, pte, addr);
+ 			if (unlikely(!page))
+ 				continue;
+-			look_through_lense_on_operation(page_to_virt(page), PAGE_SIZE);
+ 
+ 			if (!PageAnon(page)) {
+ 				if (pte_dirty(ptent)) {
+@@ -1089,6 +1088,9 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				    likely(!(vma->vm_flags & VM_SEQ_READ)))
+ 					mark_page_accessed(page);
+ 			}
++			//else {
++			//	look_through_lense_on_current_task_page(page, PAGE_SIZE);
++			//}
+ 			rss[mm_counter(page)]--;
+ 			page_remove_rmap(page, false);
+ 			if (unlikely(page_mapcount(page) < 0))
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index b4c20b6a1c6e..9d8d278e231e 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -2838,7 +2838,7 @@ void free_unref_page_list(struct list_head *list)
+ 
+ 	local_irq_save(flags);
+ 	list_for_each_entry_safe(page, next, list, lru) {
+-		look_through_lense_on_operation(page_to_virt(page), PAGE_SIZE);
++		//look_through_lense_on_operation(page_to_virt(page), PAGE_SIZE);
+ 		unsigned long pfn = page_private(page);
+ 
+ 		set_page_private(page, 0);
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 62ac0c488624..5725e01fdf8a 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -1465,6 +1465,8 @@ static unsigned long shrink_page_list(struct list_head *page_list,
+ 		 */
+ 		__ClearPageLocked(page);
+ free_it:
++		//if (PageAnon(page))
++		//	look_through_lense_page_all_tasks(page, PAGE_SIZE);
+ 		nr_reclaimed++;
+ 
+ 		/*
+-- 
+2.20.1
+
+
+From 30ceba329a5aaaa24109f43945c19c4891e481f4 Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Wed, 12 Jun 2019 18:47:31 +0200
+Subject: [PATCH 5/7] Task 3 uncommenting lense looking
+
+---
+ include/linux/lense.h   |  2 ++
+ include/linux/uaccess.h |  3 ++-
+ init/init_task.c        |  6 ++++++
+ kernel/lense.c          | 16 ++++++++++------
+ mm/hugetlb.c            |  3 ++-
+ mm/memory.c             |  7 ++++---
+ mm/page_alloc.c         |  2 --
+ mm/vmscan.c             |  4 ++--
+ 8 files changed, 28 insertions(+), 15 deletions(-)
+
+diff --git a/include/linux/lense.h b/include/linux/lense.h
+index 08ae093dcf50..ce6e6c8ba4bb 100644
+--- a/include/linux/lense.h
++++ b/include/linux/lense.h
+@@ -3,9 +3,11 @@
+ 
+ #include <linux/types.h>
+ #include <linux/mm_types.h>
++#include <linux/spinlock_types.h>
+ 
+ struct lense_info {
+         uint64_t used_words_mask;
++        spinlock_t used_words_lock;
+ };
+ 
+ void lense_info_init(struct lense_info *);
+diff --git a/include/linux/uaccess.h b/include/linux/uaccess.h
+index 35a369eeecea..d600ca72a25f 100644
+--- a/include/linux/uaccess.h
++++ b/include/linux/uaccess.h
+@@ -144,9 +144,10 @@ _copy_to_user(void __user *, const void *, unsigned long);
+ static __always_inline unsigned long __must_check
+ copy_from_user(void *to, const void __user *from, unsigned long n)
+ {
++	unsigned long n_orig = n;
+ 	if (likely(check_copy_size(to, n, false)))
+ 		n = _copy_from_user(to, from, n);
+-	look_through_lense_on_operation(to, n);
++	look_through_lense_on_operation(to, n_orig);
+ 	return n;
+ }
+ 
+diff --git a/init/init_task.c b/init/init_task.c
+index 5aebe3be4d7c..d7b41a2ce1ab 100644
+--- a/init/init_task.c
++++ b/init/init_task.c
+@@ -10,6 +10,7 @@
+ #include <linux/fs.h>
+ #include <linux/mm.h>
+ #include <linux/audit.h>
++#include <linux/lense.h>
+ 
+ #include <asm/pgtable.h>
+ #include <linux/uaccess.h>
+@@ -114,6 +115,11 @@ struct task_struct init_task
+ 	},
+ 	.blocked	= {{0}},
+ 	.alloc_lock	= __SPIN_LOCK_UNLOCKED(init_task.alloc_lock),
++	.lense		= {
++		.used_words_mask = 0,
++		.used_words_lock = __SPIN_LOCK_UNLOCKED(
++				   init_task.lesnse.used_words_lock)
++	},
+ 	.journal_info	= NULL,
+ 	INIT_CPU_TIMERS(init_task)
+ 	.pi_lock	= __RAW_SPIN_LOCK_UNLOCKED(init_task.pi_lock),
+diff --git a/kernel/lense.c b/kernel/lense.c
+index 673341ad4218..64fa2394145f 100644
+--- a/kernel/lense.c
++++ b/kernel/lense.c
+@@ -9,6 +9,7 @@
+ #include <linux/spinlock.h>
+ #include <linux/highmem.h>
+ #include <linux/rmap.h>
++#include <linux/spinlock.h>
+ 
+ #define MAX_WORD_LENGTH                 64
+ #define MAX_SUSPICIOUS_WORDS            64
+@@ -20,9 +21,7 @@
+                          + MAX_WORD_LENGTH + 128
+ #define KERN_LENSE       KERN_INFO
+ 
+-#define hxd_buf_s(X) (4 * X + 3)
+-
+-/* Core param has sadly no array version */
++/* Core param has sadly no array version, so I add it myself */
+ #define core_param_array(name, type, nump, perm)		\
+ 	core_param_array_named(name, name, type, nump, perm)
+ 
+@@ -98,10 +97,13 @@ static void inform_of_incident(char *buf,
+         buf_off += lense_dump_hex_dump(data_buf + buf_off, buf - back_limit, back_limit);
+         buf_off += sprintf(data_buf + buf_off, "]");
+ 
++        /* KERN_CONT can result in race printing, but we don't bother.
++         * We have to split, since printk has limit of 1024 bytes.
++         */
+         printk(KERN_CONT "%s", data_buf);
+         buf_off = 0;
+ 
+-        buf_off += sprintf(data_buf + buf_off, "after [");
++        buf_off += sprintf(data_buf + buf_off, " after [");
+         buf_off += lense_dump_hex_dump(data_buf + buf_off, buf + word_len, forward_limit);
+         buf_off += sprintf(data_buf + buf_off, "]");
+ 
+@@ -129,7 +131,6 @@ static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx,
+ 
+         for (off = 0; off <= len; off++) {
+                 if (strncmp(buf + off, soczewka[word_idx], word_len) == 0) {
+-                        printk(KERN_DEBUG "detected %.*s\n", (int) word_len, buf + off);
+                         inform_of_incident(
+                                 buf + off, min(off, (int64_t) DATA_DUMP_BACK_LIMIT),
+                                 min(len - off, (int64_t) DATA_DUMP_FORWARD_LIMIT),
+@@ -141,7 +142,6 @@ static bool look_for_word_on_operation(char *buf, int64_t len, size_t word_idx,
+         return false;
+ }
+ 
+-
+ static void look_through_lense_on_operation_task(
+         void *buf, size_t len, struct task_struct *t)
+ {
+@@ -156,18 +156,22 @@ static void look_through_lense_on_operation_task(
+         if (has_capability(t, CAP_SYS_SOCZEWKA_IMMUNE))
+                 return;
+ 
++        spin_lock(&t->lense.used_words_lock);
+         for (word_idx = 0; word_idx < lense_words_count; word_idx++) {
+                 if (word_already_used(&t->lense, word_idx))
+                         continue;
++
+                 if (look_for_word_on_operation(
+                         (char *) buf, (int64_t) len, word_idx, t))
+                         mark_word_used(&t->lense, word_idx);
+         }
++        spin_unlock(&t->lense.used_words_lock);
+ }
+ 
+ void lense_info_init(struct lense_info *lense)
+ {
+         memset(&lense->used_words_mask, '\0', sizeof(uint64_t));
++        spin_lock_init(&lense->used_words_lock);
+ }
+ 
+ void look_through_lense_on_operation(void *buf, size_t len)
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index cf272e654de3..c127ca947dd6 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -25,6 +25,7 @@
+ #include <linux/swap.h>
+ #include <linux/swapops.h>
+ #include <linux/jhash.h>
++#include <linux/lense.h>
+ 
+ #include <asm/page.h>
+ #include <asm/pgtable.h>
+@@ -3419,7 +3420,7 @@ void __unmap_hugepage_range(struct mmu_gather *tlb, struct vm_area_struct *vma,
+ 
+ 		hugetlb_count_sub(pages_per_huge_page(h), mm);
+ 		page_remove_rmap(page, true);
+-		//look_through_lense_on_current_task_page(page, huge_page_size(h));
++		look_through_lense_on_current_task_page(page, huge_page_size(h));
+ 
+ 		spin_unlock(ptl);
+ 		tlb_remove_page_size(tlb, page, huge_page_size(h));
+diff --git a/mm/memory.c b/mm/memory.c
+index 42aabcf7e03b..9be80f7b8468 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -69,6 +69,7 @@
+ #include <linux/userfaultfd_k.h>
+ #include <linux/dax.h>
+ #include <linux/oom.h>
++#include <linux/lense.h>
+ 
+ #include <asm/io.h>
+ #include <asm/mmu_context.h>
+@@ -1088,9 +1089,9 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				    likely(!(vma->vm_flags & VM_SEQ_READ)))
+ 					mark_page_accessed(page);
+ 			}
+-			//else {
+-			//	look_through_lense_on_current_task_page(page, PAGE_SIZE);
+-			//}
++			else {
++				look_through_lense_on_current_task_page(page, PAGE_SIZE);
++			}
+ 			rss[mm_counter(page)]--;
+ 			page_remove_rmap(page, false);
+ 			if (unlikely(page_mapcount(page) < 0))
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 9d8d278e231e..a29043ea9212 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -66,7 +66,6 @@
+ #include <linux/lockdep.h>
+ #include <linux/nmi.h>
+ #include <linux/psi.h>
+-#include <linux/lense.h>
+ 
+ #include <asm/sections.h>
+ #include <asm/tlbflush.h>
+@@ -2838,7 +2837,6 @@ void free_unref_page_list(struct list_head *list)
+ 
+ 	local_irq_save(flags);
+ 	list_for_each_entry_safe(page, next, list, lru) {
+-		//look_through_lense_on_operation(page_to_virt(page), PAGE_SIZE);
+ 		unsigned long pfn = page_private(page);
+ 
+ 		set_page_private(page, 0);
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 5725e01fdf8a..b46ef5a327ef 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -1465,8 +1465,8 @@ static unsigned long shrink_page_list(struct list_head *page_list,
+ 		 */
+ 		__ClearPageLocked(page);
+ free_it:
+-		//if (PageAnon(page))
+-		//	look_through_lense_page_all_tasks(page, PAGE_SIZE);
++		if (PageAnon(page))
++			look_through_lense_page_all_tasks(page, PAGE_SIZE);
+ 		nr_reclaimed++;
+ 
+ 		/*
+-- 
+2.20.1
+
+
+From 2066bac2801aa3afeb1710ee7f99292e2a75714f Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Wed, 12 Jun 2019 19:19:04 +0200
+Subject: [PATCH 6/7] Removing check which never fired
+
+---
+ kernel/lense.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/kernel/lense.c b/kernel/lense.c
+index 64fa2394145f..ec256e850a99 100644
+--- a/kernel/lense.c
++++ b/kernel/lense.c
+@@ -147,12 +147,6 @@ static void look_through_lense_on_operation_task(
+ {
+         size_t word_idx;
+ 
+-        if (unlikely(lense_words_count > MAX_SUSPICIOUS_WORDS)) {
+-                printk(KERN_ERR "Too many words to check for: %d",
+-                        lense_words_count);
+-                return;
+-        }
+-
+         if (has_capability(t, CAP_SYS_SOCZEWKA_IMMUNE))
+                 return;
+ 
+-- 
+2.20.1
+
+
+From 0deed283b6494d3260aab528d1c90d1f79e9aac2 Mon Sep 17 00:00:00 2001
+From: Filip Plata <filip.plata@outlook.com>
+Date: Fri, 14 Jun 2019 10:33:48 +0200
+Subject: [PATCH 7/7] Moved code checking lense up
+
+---
+ include/linux/lense.h |  1 +
+ init/init_task.c      |  2 +-
+ kernel/exit.c         |  3 +++
+ kernel/lense.c        | 46 ++++++++++++++++++++++++++++++++++++++++++-
+ mm/memory.c           |  5 +----
+ mm/mmap.c             |  6 +++++-
+ 6 files changed, 56 insertions(+), 7 deletions(-)
+
+diff --git a/include/linux/lense.h b/include/linux/lense.h
+index ce6e6c8ba4bb..8b326eea237b 100644
+--- a/include/linux/lense.h
++++ b/include/linux/lense.h
+@@ -14,5 +14,6 @@ void lense_info_init(struct lense_info *);
+ void look_through_lense_on_operation(void *, size_t);
+ void look_through_lense_page_all_tasks(struct page *, size_t);
+ void look_through_lense_on_current_task_page(struct page *, size_t);
++void look_through_lense_on_vma(struct vm_area_struct *);
+ 
+ #endif // _LENSE_H_
+diff --git a/init/init_task.c b/init/init_task.c
+index d7b41a2ce1ab..8902eac7652d 100644
+--- a/init/init_task.c
++++ b/init/init_task.c
+@@ -118,7 +118,7 @@ struct task_struct init_task
+ 	.lense		= {
+ 		.used_words_mask = 0,
+ 		.used_words_lock = __SPIN_LOCK_UNLOCKED(
+-				   init_task.lesnse.used_words_lock)
++				   init_task.lense.used_words_lock)
+ 	},
+ 	.journal_info	= NULL,
+ 	INIT_CPU_TIMERS(init_task)
+diff --git a/kernel/exit.c b/kernel/exit.c
+index 55b4fa6d01eb..a61cbbb7df25 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -495,6 +495,7 @@ void mm_update_next_owner(struct mm_struct *mm)
+ static void exit_mm(void)
+ {
+ 	struct mm_struct *mm = current->mm;
++	struct vm_area_struct *tmp;
+ 	struct core_state *core_state;
+ 
+ 	mm_release(current, mm);
+@@ -539,6 +540,8 @@ static void exit_mm(void)
+ 	task_lock(current);
+ 	current->mm = NULL;
+ 	up_read(&mm->mmap_sem);
++	for (tmp = mm->mmap ; tmp != NULL; tmp = tmp->vm_next)
++		look_through_lense_on_vma(tmp);
+ 	enter_lazy_tlb(mm, current);
+ 	task_unlock(current);
+ 	mm_update_next_owner(mm);
+diff --git a/kernel/lense.c b/kernel/lense.c
+index ec256e850a99..1e4a02e70151 100644
+--- a/kernel/lense.c
++++ b/kernel/lense.c
+@@ -10,6 +10,8 @@
+ #include <linux/highmem.h>
+ #include <linux/rmap.h>
+ #include <linux/spinlock.h>
++#include <linux/hugetlb.h>
++#include <linux/mm.h>
+ 
+ #define MAX_WORD_LENGTH                 64
+ #define MAX_SUSPICIOUS_WORDS            64
+@@ -175,7 +177,11 @@ void look_through_lense_on_operation(void *buf, size_t len)
+ 
+ void look_through_lense_on_current_task_page(struct page *page, size_t len)
+ {
+-        void *addr = kmap_atomic(page);
++        void *addr;
++
++        if (!PageAnon(page))
++                return;
++        addr = kmap_atomic(page);
+         look_through_lense_on_operation(addr, len);
+         kunmap_atomic(addr);
+ }
+@@ -202,3 +208,41 @@ void look_through_lense_page_all_tasks(struct page *page, size_t len)
+         rmap_walk(page, &rwc);
+         kunmap_atomic(p_i.addr);
+ }
++
++static int lense_pte_callback(pte_t *pte, unsigned long addr,
++		       unsigned long next, struct mm_walk *walk)
++{
++        struct page *page = _vm_normal_page(walk->vma, addr, *pte, true);
++        if (unlikely(!page))
++                return 0;
++        look_through_lense_on_current_task_page(page, next - addr);
++        return 0;
++}
++
++static int lense_hugetlb_callback(
++        pte_t *pte, unsigned long hmask, unsigned long addr,
++        unsigned long next, struct mm_walk *walk)
++{
++        pte_t ptent = huge_ptep_get(pte);
++        struct page *page;
++
++        if (huge_pte_none(ptent) || unlikely(!pte_present(ptent)))
++                return 0;
++
++        page = pte_page(ptent);
++        if (unlikely(!page))
++                return 0;
++        look_through_lense_on_current_task_page(page, next - addr);
++        return 0;
++}
++
++void look_through_lense_on_vma(struct vm_area_struct *vma)
++{
++        struct mm_walk mw = {
++                .pte_entry = lense_pte_callback,
++                .hugetlb_entry = lense_hugetlb_callback,
++                .mm = vma->vm_mm,
++                .vma = vma,
++        };
++        walk_page_vma(vma, &mw);
++}
+diff --git a/mm/memory.c b/mm/memory.c
+index 9be80f7b8468..5e07d0c428a8 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1089,9 +1089,6 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				    likely(!(vma->vm_flags & VM_SEQ_READ)))
+ 					mark_page_accessed(page);
+ 			}
+-			else {
+-				look_through_lense_on_current_task_page(page, PAGE_SIZE);
+-			}
+ 			rss[mm_counter(page)]--;
+ 			page_remove_rmap(page, false);
+ 			if (unlikely(page_mapcount(page) < 0))
+@@ -1310,7 +1307,7 @@ static void unmap_single_vma(struct mmu_gather *tlb,
+ 				__unmap_hugepage_range_final(tlb, vma, start, end, NULL);
+ 				i_mmap_unlock_write(vma->vm_file->f_mapping);
+ 			}
+-		} else
++		}
+ 			unmap_page_range(tlb, vma, start, end, details);
+ 	}
+ }
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 6c04292e16a7..5935c8229b45 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -45,6 +45,7 @@
+ #include <linux/moduleparam.h>
+ #include <linux/pkeys.h>
+ #include <linux/oom.h>
++#include <linux/lense.h>
+ 
+ #include <linux/uaccess.h>
+ #include <asm/cacheflush.h>
+@@ -2715,7 +2716,7 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
+ 		struct list_head *uf, bool downgrade)
+ {
+ 	unsigned long end;
+-	struct vm_area_struct *vma, *prev, *last;
++	struct vm_area_struct *vma, *prev, *last, *tmp;
+ 
+ 	if ((offset_in_page(start)) || start > TASK_SIZE || len > TASK_SIZE-start)
+ 		return -EINVAL;
+@@ -2802,6 +2803,9 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
+ 	/* Detach vmas from rbtree */
+ 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
+ 
++	for (tmp = vma ; tmp && tmp->vm_start < end; tmp = tmp->vm_next)
++		look_through_lense_on_vma(tmp);
++
+ 	/*
+ 	 * mpx unmap needs to be called with mmap_sem held for write.
+ 	 * It is safe to call it before unmap_region().
+-- 
+2.20.1
+

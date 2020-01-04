@@ -1,0 +1,23 @@
+My task was greatly simplified, because I have also run analyze on
+my own postgres and it showed me how important is a good query plan.
+
+For instance, my postgres uses index-only-scan, which is not in the
+version on mimuw.
+
+postgres_10_7_analyze.sql looks like optimum for me. It expects
+not that many teammember rows (100) (much less than version 9.0.1) which
+is closer to truth (9).
+And then it just goes to fetch those 9 battles exactly after obtaining
+indexes of teammember.
+
+Older version (faculty one) expects a lot of teammember (~30000) rows and then does
+some crazy seq scan of battle table and execution takes more than
+10^5 longer, which is insane. Although it might make sense if there
+truly were 30000 rows (but there cannot be - it would take playing without
+stop all the time for 50 days, which is query range).
+
+To sum up, my query suggest using modern postgres on a good machine.
+Also, we can create an index for battle.time (range), because
+we might often do ranges on time.
+STATISTICS target also seems like a interesting parmeter,
+since accurate predicitons make a huge difference.

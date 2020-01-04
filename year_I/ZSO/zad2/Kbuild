@@ -1,0 +1,7 @@
+
+harddoom2-objs += doom_parse_cmd.o doom_abi.o doom_context.o doom_dma.o
+harddoom2-objs += doom_base.o doom_validate.o doom_device.o doom_reg.o
+harddoom2-objs += doom_engine.o doom_irqs.o doom_irq_handlers.o
+harddoom2-objs += doom_command_wait.o doom_batch.o doom_setup.o
+harddoom2-objs += doom_fence.o
+obj-m += harddoom2.o

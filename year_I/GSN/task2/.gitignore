@@ -1,0 +1,7 @@
+*.tgz
+*.png
+cityscapes*
+*.out
+*.in
+*.log
+*.pdf

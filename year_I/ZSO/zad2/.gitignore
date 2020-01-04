@@ -1,0 +1,10 @@
+Module.symvers
+modules.order
+.cache.mk
+*.ko
+*.o
+*.cmd
+.tmp*
+*.ur-safe
+*.mod.c
+test

@@ -1,0 +1,16 @@
+Homework 03:
+
+- Connect achievements to playerStats
+
+tpc.org benchmarks, TPC-H - popatrzeć na to, na
+data model benchmarku. Przeczytać zapytania, jest ich 22.
+Wybrać sobie 3 zapytania do danych, których można używać
+do benchmarków.
+
+Głosowanie 12.03
+
+Homework 05
+
+Zanalizować query numery 18, przypisanie na labach.
+Explain, explain analyse, check whether its optimal
+or not, czy jest spoko, czy nie.

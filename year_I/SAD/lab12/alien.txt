@@ -1,0 +1,2 @@
+height weight is_humanoid has_physical_body speaks_english number_of_eyes aggression_level
+170 80 TRUE TRUE FALSE 2 2

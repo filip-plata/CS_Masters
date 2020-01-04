@@ -1,0 +1,6 @@
+- no threeCrownWins field in gameStats
+- team member co to jest name // zrobić
+- team member clan id może być null
+- battle mode wszystko moze być null
+- clanMembership w playerStats może być nullem
+- arena może być nullem

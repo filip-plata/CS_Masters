@@ -1,0 +1,14 @@
+.idea
+*.qcow2
+linux-stable
+hshare
+cmake-build-*
+build
+binutils-gdb
+*_build
+*_data
+*.img
+qemu
+zad2-debug
+zad2-tests
+zad3-tests

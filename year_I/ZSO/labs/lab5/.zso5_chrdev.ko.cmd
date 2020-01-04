@@ -1,0 +1,1 @@
+cmd_/home/filip/Studia/ZSO/lab5/zso5_chrdev.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/filip/Studia/ZSO/lab5/zso5_chrdev.ko /home/filip/Studia/ZSO/lab5/zso5_chrdev.o /home/filip/Studia/ZSO/lab5/zso5_chrdev.mod.o ;  true

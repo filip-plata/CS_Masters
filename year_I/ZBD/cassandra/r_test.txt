@@ -1,0 +1,113 @@
+\set TIME_START '01-Mar-2018'
+\set TIME_END '15-Aug-2018'
+
+1322,549
+1302,564
+1340,565
+1303,837
+1291,163
+
+Mean:
+1312,1356
+
+Standard Deviation:
+19,47435444
+
+Rows:
+7331
+
+ total  | wins  | losses | ties 
+--------+-------+--------+------
+ 160750 | 77082 |  77082 | 6586
+
+\set TIME_START '25-May-2018'
+\set TIME_END '11-Sep-2018'
+
+32049,490
+31847,681
+32235,084
+31897,463
+31684,029
+
+Mean:
+31942,7494
+
+Standard Deviation:
+209,0921915
+
+Rows:
+1015351
+
+Without GROUP BY:
+  total  |  wins   | losses  |  ties  
+---------+---------+---------+--------
+ 4319742 | 2056648 | 2056648 | 206446
+
+\set TIME_START '15-Mar-2018'
+\set TIME_END '15-Sep-2018'
+
+34647,552
+34671,028
+35153,481
+34917,633
+34486,752
+
+Mean:
+34775,2892
+
+Standard Deviation:
+261,5968754
+
+Rows:
+891865
+
+Without GROUP BY:
+  total  |  wins   | losses  |  ties  
+---------+---------+---------+--------
+ 4669634 | 2224178 | 2224178 | 221278
+
+\set TIME_START '09-Mar-2018'
+\set TIME_END '25-Sep-2018'
+
+45053,951
+45708,243
+45341,045
+45347,269
+44758,878
+
+Mean:
+45241,8772
+
+Standard Deviation:
+356,0348393
+
+Rows:
+1365927
+
+Without GROUP BY:
+  total  |  wins   | losses  |  ties  
+---------+---------+---------+--------
+ 6175790 | 2947057 | 2947057 | 281676
+
+\set TIME_START '02-Mar-2018'
+\set TIME_END '25-Sep-2018'
+
+44044,217
+45282,890
+44751,881
+45121,397
+46239,750
+
+Mean:
+45088,027
+
+Standard Deviation:
+801,2622018
+
+Rows:
+1501719
+
+Without GROUP BY:
+  total  |  wins   | losses  |  ties  
+---------+---------+---------+--------
+ 6178140 | 2948139 | 2948139 | 281862
