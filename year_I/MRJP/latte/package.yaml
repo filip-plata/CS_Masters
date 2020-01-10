@@ -1,0 +1,75 @@
+name:                latte
+version:             0.1.0.0
+github:              "githubuser/latte"
+license:             BSD3
+author:              "Filip Plata"
+maintainer:          "fp371335@students.mimuw.edu.pl"
+copyright:           "2019 Filip Plata"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/latte#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+
+library:
+  source-dirs:            src
+  exposed-modules:    Latte.Frontend
+                    , Latte.UtilsCLI
+                    , Latte.CodeGen.LLVM
+  other-modules:      Latte.Common.AST
+                    , Latte.Common.SymbolTable
+                    , Latte.Frontend.Typechecker
+                    , Latte.Common.Annotation
+                    , Latte.Common.Runtime
+                    , Latte.Frontend.Error
+                    , Latte.Frontend.Parser
+                    , Latte.CodeGen.OptimizerLLVM
+  dependencies:
+  - mtl >= 2.2 && < 3
+  - containers >= 0.6 && < 1
+  - safe >= 0.3 && < 1
+  - llvm-hs-pure >= 7 && < 8
+  - megaparsec
+  - parser-combinators
+  - split
+  - bytestring >= 0.10 && < 1
+  - Unique >= 0.4 && < 1
+  - llvm-hs-pretty == 0.6.1.0
+  - text
+  - uniplate >= 1.6 && < 2
+
+executables:
+  latc_frontend:
+    main:                Main.hs
+    source-dirs:         app/frontend
+    dependencies:
+    - latte
+    - directory >= 1.3 && < 2
+    - filepath >= 1.4 && < 2
+    - megaparsec
+  latc_llvm:
+    main:                Main.hs
+    source-dirs:         app/llvm
+    dependencies:
+      - latte
+      - directory >= 1.3 && < 2
+      - filepath >= 1.4 && < 2
+      - process >= 1.6 && < 2
+
+tests:
+  latte-test:
+    main:                Spec.hs
+    source-dirs:         test
+    dependencies:
+    - latte

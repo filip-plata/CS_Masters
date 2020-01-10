@@ -1,0 +1,9 @@
+.stack-work/
+instant.cabal
+*~
+*.j
+*.class
+*.ll
+*.bc
+!lib/runtime.bc
+*.tar.gz

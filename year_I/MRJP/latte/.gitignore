@@ -1,0 +1,6 @@
+.stack-work/
+latte.cabal
+*~
+bin
+lib
+*.save
