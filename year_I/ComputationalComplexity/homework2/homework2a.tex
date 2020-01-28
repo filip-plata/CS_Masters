@@ -1,0 +1,337 @@
+\documentclass{article}
+
+\usepackage{fancyhdr}
+\usepackage{extramarks}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{tikz}
+\usepackage[plain]{algorithm}
+\usepackage{algpseudocode}
+
+\usetikzlibrary{automata,positioning}
+
+%
+% Basic Document Settings
+%
+
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+\headsep=0.25in
+
+\linespread{1.1}
+
+\pagestyle{fancy}
+\lhead{\hmwkAuthorName}
+\chead{\hmwkClass\ : \hmwkTitle}
+\rhead{\firstxmark}
+\lfoot{\lastxmark}
+\cfoot{\thepage}
+
+\renewcommand\headrulewidth{0.4pt}
+\renewcommand\footrulewidth{0.4pt}
+
+\setlength\parindent{0pt}
+
+%
+% Create Problem Sections
+%
+
+\newcommand{\enterProblemHeader}[1]{
+    \nobreak\extramarks{}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+    \nobreak\extramarks{Problem \arabic{#1} (continued)}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+}
+
+\newcommand{\exitProblemHeader}[1]{
+    \nobreak\extramarks{Problem \arabic{#1} (continued)}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+    \stepcounter{#1}
+    \nobreak\extramarks{Problem \arabic{#1}}{}\nobreak{}
+}
+
+\setcounter{secnumdepth}{0}
+\newcounter{partCounter}
+\newcounter{homeworkProblemCounter}
+\setcounter{homeworkProblemCounter}{1}
+\nobreak\extramarks{Problem \arabic{homeworkProblemCounter}}{}\nobreak{}
+
+%
+% Homework Problem Environment
+%
+% This environment takes an optional argument. When given, it will adjust the
+% problem counter. This is useful for when the problems given for your
+% assignment aren't sequential. See the last 3 problems of this template for an
+% example.
+%
+\newenvironment{homeworkProblem}[1][-1]{
+    \ifnum#1>0
+        \setcounter{homeworkProblemCounter}{#1}
+    \fi
+    \section{Problem \arabic{homeworkProblemCounter}}
+    \setcounter{partCounter}{1}
+    \enterProblemHeader{homeworkProblemCounter}
+}{
+    \exitProblemHeader{homeworkProblemCounter}
+}
+
+%
+% Homework Details
+%   - Title
+%   - Due date
+%   - Class
+%   - Section/Time
+%   - Instructor
+%   - Author
+%
+
+\newcommand{\hmwkTitle}{Homework\ \#2}
+\newcommand{\hmwkDueDate}{December 19, 2019}
+\newcommand{\hmwkClass}{Computational Complexity}
+\newcommand{\hmwkAuthorName}{\textbf{Filip Plata}}
+
+%
+% Title Page
+%
+
+\title{
+    \vspace{2in}
+    \textmd{\textbf{\hmwkClass:\ \hmwkTitle}}\\
+    \normalsize\vspace{0.1in}\small{Due\ on\ \hmwkDueDate\ at 23:59}\\
+    \vspace{3in}
+}
+
+\author{\hmwkAuthorName}
+\date{\today}
+
+\renewcommand{\part}[1]{\textbf{\large Part \Alph{partCounter}}\stepcounter{partCounter}\\}
+
+%
+% Various Helper Commands
+%
+
+% Useful for algorithms
+\newcommand{\alg}[1]{\textsc{\bfseries \footnotesize #1}}
+
+% For derivatives
+\newcommand{\deriv}[1]{\frac{\mathrm{d}}{\mathrm{d}x} (#1)}
+
+% For partial derivatives
+\newcommand{\pderiv}[2]{\frac{\partial}{\partial #1} (#2)}
+
+% Integral dx
+\newcommand{\dx}{\mathrm{d}x}
+
+% Alias for the Solution section header
+\newcommand{\solution}{\textbf{\large Solution}}
+
+% Probability commands: Expectation, Variance, Covariance, Bias
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\Bias}{\mathrm{Bias}}
+
+\begin{document}
+
+\maketitle
+
+\pagebreak
+
+\begin{homeworkProblem}[1]
+
+	\textbf{Initial remarks}
+	
+	We will refer to the problem from task as language L in this solution. We will also
+	say that sequence of letters (possibly finite) is \textit{correct}, if it satisfies
+	all constraints from tuples. This assumes we will always have some implicit alphabet
+	and tuple set throught the solution and we will omit referring to it.
+	\\
+
+    \textbf{Main Solution - $L \in \textsc{PSPACE}$}
+
+	We will start by proving that $L \in \textsc{PSPACE}$. We will use the fact that
+	$\textsc{PSPACE} = \textsc{NPSPACE}$, so it is enough to prove that 
+	$L \in \textsc{NPSPACE}$. Let us by C denote maximum number of positions to the right
+	that a rule can influence, e.g. the maximum of $j + k + 1$ over all tuples. Our
+	algorithm will guess letters one by one, always keeping in memory previous C letters
+	(at the beginning, it starts with $C-1$ blanks which are not in alphabet and $x_0$).
+	After every guess it checks if rules would hold after appending new letter, and then
+	shifts letters by one and inserts guessed letter. If no letter can be appended, 
+	the algorithm rejects. 
+	We also keep a counter, increasing it by one with every new letter. When
+	counter will reach a value $> 3 * (|A| + 1)^{C}$, where $|A|$ is alphabet size, 
+	we accept
+	- we know we have a cycle in memorized letters, and machine could just repeat it
+	\textit{ad infinitum}. For counter we need linear memory with respect to C, which
+	is linear (so also polynomial) in terms of tuple sizes. If algorithm cannot reach
+	our counter threshold, then there is no correct sequence of such length, which
+	means also there is no infinite sequence.
+	\\
+	
+	\textbf{Main Solution - L in \textsc{PSPACE-complete}}
+	
+	We will perform reduction from TILING problem. This means we have a set of tiles
+	$T$, tiles $t_1, t_2 \in T$, a number $n_x$ written in unary and a set of rules,
+	which
+	decide whether two tiles can be neighbours. We ask whether there exists $n_y$,
+	such that a grid $n_x \times n_y$ can be covered by tiles, such that $t_1$ is in 
+	lower left corner, and $t_2$ is in upper right corner and all neighbours fit to each
+	other. This problem (from tutorials) was proven to be \textsc{PSPACE-complete}.
+	\\
+	
+	We will begin by high level overview of the reduction. We linearize grid, by
+	putting consecutive rows next to each other. Next, we will force every correct
+	sequence to take form of batches of letters of fixed size next to each other. In
+	those batches, we will keep administrative information - index of the batch 
+	(in binary), one row of tiles and information whether index has overflown -
+	this will inform us to disallow such sequences. Using tuples
+	we will enforce neighbouring rules on tiles. We will also have in batch a letter
+	at its very beginning, to mark that it is a batch. If the tile in last row is
+	the one we want, we will allow the sequence to transform into infinite stream of
+	one special letter marking success.
+	\\
+	
+	The idea comes from the fact, that if there is a correct tiling, then because total
+	number of distinct rows is not greater than $|T|^{n_x}$, a solution can be made
+	shorter than $2 \cdot |T|^{n_x} + 1$. This means that if our sequence gets too long,
+	we can try to introduce a contradicting rules. So if there is a tiling, our letter
+	sequence will have to escape into special success symbol - which will be possible
+	only after finding correct upper right tile. Conversly, if there is a infinite
+	sequence, this means at some point it contains success symbols only, and we can
+	extract tiling from consecutive batches. The reader can note that with this approach
+	there are two orthogonal problems - accepting only valid tilings, and then forcing
+	a sequence to be possibly infinite only when correct tiling is found. Our 
+	administrative information - counter and overflow marker - serves the purpose to
+	forcibly end the 'computation' of sequence.
+	\\
+	
+	Now a formal description of reduction. Firstly, as alphabet
+	we will use 
+	
+	\[ A = T \cup \{ OK, NO, NO', ({0, 1}, \{ OVERFLOW, NO\_OVERFLOW \}), BATCH, BATCH\_INI \} \] 
+	notation is not formal, we expand every possibility for bits
+	and overflow marker into four letters.
+	This means additionaly to tiles, we will have 'OK' letter - success symbol - NO and
+	NO' will serve to introduce contradicting rules - using contradicting rules, we can
+	force correct sequences to have some properties. $BATCH\_INI$ is a letter $x_0$, we
+	will use it to initialze administrative information and lower left tile. BATCH
+	represents any consecutive batch before success has been reached. The idea is to
+	force BATCH letters at the beggining of batch to have relative marker for rules.
+	Now we will proceed to description of rules. This will be done in stages, for each
+	part of batch seperately. Now we will define some symbols for lengths and offsets
+	inside a batch.
+	Let the length of counter be $CTR\_LEN$ - it has to hold values on the order of
+	$|T|^{n_x}$, so it requires linear space with respect to $n_x$ - since $n_x$ is
+	written in unary, and we write counter in binary. Let offset of tiles be $TIL\_OFF$.
+	And now we will define some macro rules. This will be gadgets we will use to shorten
+	the formal description:
+	
+	\begin{itemize}
+
+		\item DISALLOW(x, k, y) = (x, k, y, 1, NO), (x, k, y, 1, NO') - disallow x followed by y k letters latter - no correct infinite sequence can contain such two letters wiht those two rules
+		\item ENFORCE(x, k, S) = DISALLOW(x, k, $s'$) for $s' \in A \setminus S $, where S is some set of letters
+	
+	\end{itemize}
+	
+	We will also use sets of letters in macro rules. This we want to expand to set of rules, with
+	every possible combination of letters from sets, e.g: 
+	
+	DISALLOW($\{ a, b \}$, k, c) = DISALLOW(a, k, c) and DISALLOW(b, k, c)
+	
+	And now on to stages. The layout of a batch will be:
+	
+	\begin{itemize}
+	
+		\item BATCH marker
+		\item Counter - a fixed length number of bits
+		\item tiles
+		
+	\end{itemize}		
+	
+	\textbf{Initial batch}
+	We introduce following rules:
+	
+	\begin{itemize}
+		\item (BATCH\_INI, 0, BATCH\_INI, k, (0, NO\_OVERFLOW) ) for $1 \leq k \leq CTR\_LEN$ - setting counter to zero
+		\item ENFORCE(BATCH\_INI, BATCH\_LEN, $\{ BATCH, OK \}$) - we could be lucky and finish with first row only
+		\item ENFORCE(BATCH\_INI, TIL\_OFF, $\{ t_1 \}$) - initial tiling letter
+	\end{itemize}
+	
+	\textbf{Incrementing counter by one}
+	
+	We force initialization of counter only if there is a next BATCH. Then four addition
+	rules, that force counter incremented by one in the next batch - if a counter was
+	forced. Then there is a rules to copy counter bits after incrementing stops at some
+	position.
+	
+	\begin{itemize}
+	
+		\item ( (1, \_), $BATCH\_LEN - 1$, BATCH, 1, (0, OVERFLOW))
+		\item ( (0, \_), $BATCH\_LEN - 1$, BATCH, 1, (1, NO\_OVERFLOW))
+		
+		\item ( (1, \_), $BATCH\_LEN - 1$, (0, OVERFLOW), 1,  (0, OVERFLOW))
+		\item ( (0, \_), $BATCH\_LEN - 1$, (0, OVERFLOW), 1,  (1, NO\_OVERFLOW))
+		\item ( (0, \_), $BATCH\_LEN - 1$, (1, OVERFLOW), 1,  (0, OVERFLOW))
+		\item ( (1, \_), $BATCH\_LEN - 1$, (1, OVERFLOW), 1,  (1, OVERFLOW))
+		\item ( (bit, \_), $BATCH\_LEN - 1$, (\_, NO\_OVERFLOW), 1,  (bit, NO\_OVERFLOW))
+	\end{itemize}
+	
+	Effectively, if there is a next batch marker, those rules will increment it by one
+	in the next batch - meaning every correct sequence must have such behaviour.
+	\\
+	
+	\textbf{Disallowing long inproductive sequences}
+	
+	DISALLOW(BATCH, CTR\_LEN, (1, \_)) - if counter highest bit ever reaches 1, such
+	sequence cannot continue. This gives us that if there exists an infinite sequence,
+	it must at some point escape calculating consecutive batches into OK stream.
+	\\
+	
+	\textbf{Enforcing tiling constraints}
+	
+	\begin{itemize}
+		\item ENFORCE(t, 1, GOOD\_RIGHT(t)) for $t \in T$ - only allow correct right neighbours from tiling to appear as next letter to a tile. BATCH and OK are also fine
+		\item ENFORCE(t, $BATCH\_LEN$, GOOD\_UP(t)) - we also allow BATCH and OK
+		\item ENFORCE($\{ BATCH, BATCH\_INI \}$, l, T), for $TIL\_OFF \leq l \le BATCH\_LEN - 1$ - we need aditional constraint to allow only tiling letters on $n_x$ consecutive positions. It looks contrived, but we do not want to disallow for the last tile in the row to be next to BATCH or OK
+	\end{itemize}
+	
+	\textbf{Computation flow - do we end or not}
+	
+	\begin{itemize}
+		\item ($\{BATCH, BATCH\_INI\}$, $TIL\_OFF + n_x - 1$, $t_2$, 1, OK) - we end computation when we see correct last tile
+		\item ($\{BATCH, BATCH\_INI\}$, $TIL\_OFF + n_x - 1$, $T \setminus \{ t_2 \}$, 1, BATCH) - so we can place OK only if last tile is $t_2$. This is $2 * (|T| - 1)$ rules
+		\item (OK, 0, OK, 1, OK) - we truly end computation, only OK allowed after first OK, thus we easily have infinite sequence
+	\end{itemize}
+	
+	\textbf{Proof of equivalence}
+	
+	If there exists a correct tiling, we can construct a sequence adhering to such rules:
+	counter for consequtive batches is incresed by one, and for tiles we use tiles from
+	tiling, row by row. After last row we have infinite sequence of OK letters. Such
+	sequence satisfies all constraints. Conversly, if we have an infinite sequence, this
+	means we never encounter 1 on highest bit of counter. Assuming our sequence does not
+	contain a $t_2$ tile at the end of a batch, we would never see any OK letter. This
+	means that we have BATCH symbols, which enforce incrementing counter in every batch,
+	and at some point a contradictory rules for highest bit of counter set to one
+	would have to be enforced, which is a contradiction (meaning - our sequence cannot
+	be infinite, because it cannot continue). This means we do see an OK letter, which
+	means we do have a matching $t_2$ tile, and we could extract tiles from batches
+	to form a tiling.
+	\\
+	Thus, the languages are equivalent. One can easily see, that to perform reduction
+	it suffices to use $O(log (n_x))$ memory - every macro can be expanded separately,
+	and additional logarihmic memory is enough to expand each of them. This completes
+	the proof. The number of macros is $O(n_x)$, each has size also $O(n_x)$, thus the
+	memory used is polynomial ($O(n_x ^ 2)$) in terms of $n_x$.
+	
+
+\end{homeworkProblem}
+
+\pagebreak
+
+
+
+\pagebreak
+
+\end{document}

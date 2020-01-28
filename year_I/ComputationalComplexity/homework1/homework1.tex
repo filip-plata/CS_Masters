@@ -1,0 +1,317 @@
+\documentclass{article}
+
+\usepackage{fancyhdr}
+\usepackage{extramarks}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{tikz}
+\usepackage[plain]{algorithm}
+\usepackage{algpseudocode}
+
+\usetikzlibrary{automata,positioning}
+
+%
+% Basic Document Settings
+%
+
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+\headsep=0.25in
+
+\linespread{1.1}
+
+\pagestyle{fancy}
+\lhead{\hmwkAuthorName}
+\chead{\hmwkClass\ : \hmwkTitle}
+\rhead{\firstxmark}
+\lfoot{\lastxmark}
+\cfoot{\thepage}
+
+\renewcommand\headrulewidth{0.4pt}
+\renewcommand\footrulewidth{0.4pt}
+
+\setlength\parindent{0pt}
+
+%
+% Create Problem Sections
+%
+
+\newcommand{\enterProblemHeader}[1]{
+    \nobreak\extramarks{}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+    \nobreak\extramarks{Problem \arabic{#1} (continued)}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+}
+
+\newcommand{\exitProblemHeader}[1]{
+    \nobreak\extramarks{Problem \arabic{#1} (continued)}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+    \stepcounter{#1}
+    \nobreak\extramarks{Problem \arabic{#1}}{}\nobreak{}
+}
+
+\setcounter{secnumdepth}{0}
+\newcounter{partCounter}
+\newcounter{homeworkProblemCounter}
+\setcounter{homeworkProblemCounter}{1}
+\nobreak\extramarks{Problem \arabic{homeworkProblemCounter}}{}\nobreak{}
+
+%
+% Homework Problem Environment
+%
+% This environment takes an optional argument. When given, it will adjust the
+% problem counter. This is useful for when the problems given for your
+% assignment aren't sequential. See the last 3 problems of this template for an
+% example.
+%
+\newenvironment{homeworkProblem}[1][-1]{
+    \ifnum#1>0
+        \setcounter{homeworkProblemCounter}{#1}
+    \fi
+    \section{Problem \arabic{homeworkProblemCounter}}
+    \setcounter{partCounter}{1}
+    \enterProblemHeader{homeworkProblemCounter}
+}{
+    \exitProblemHeader{homeworkProblemCounter}
+}
+
+%
+% Homework Details
+%   - Title
+%   - Due date
+%   - Class
+%   - Section/Time
+%   - Instructor
+%   - Author
+%
+
+\newcommand{\hmwkTitle}{Homework\ \#1}
+\newcommand{\hmwkDueDate}{November 26, 2019}
+\newcommand{\hmwkClass}{Computational Complexity}
+\newcommand{\hmwkAuthorName}{\textbf{Filip Plata}}
+
+%
+% Title Page
+%
+
+\title{
+    \vspace{2in}
+    \textmd{\textbf{\hmwkClass:\ \hmwkTitle}}\\
+    \normalsize\vspace{0.1in}\small{Due\ on\ \hmwkDueDate\ at 23:59}\\
+    \vspace{3in}
+}
+
+\author{\hmwkAuthorName}
+\date{\today}
+
+\renewcommand{\part}[1]{\textbf{\large Part \Alph{partCounter}}\stepcounter{partCounter}\\}
+
+%
+% Various Helper Commands
+%
+
+% Useful for algorithms
+\newcommand{\alg}[1]{\textsc{\bfseries \footnotesize #1}}
+
+% For derivatives
+\newcommand{\deriv}[1]{\frac{\mathrm{d}}{\mathrm{d}x} (#1)}
+
+% For partial derivatives
+\newcommand{\pderiv}[2]{\frac{\partial}{\partial #1} (#2)}
+
+% Integral dx
+\newcommand{\dx}{\mathrm{d}x}
+
+% Alias for the Solution section header
+\newcommand{\solution}{\textbf{\large Solution}}
+
+% Probability commands: Expectation, Variance, Covariance, Bias
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\Bias}{\mathrm{Bias}}
+
+\begin{document}
+
+\maketitle
+
+\pagebreak
+
+\begin{homeworkProblem}[1]
+
+    \textbf{Main Solution}
+
+	Let $M = (Q, \Sigma, i, b, A, \delta)$, where Q is set of states, sigma is the alphabet,
+	$i$ is the initial state, $b$ is a blank, $A$ is set of accepting states and delta
+	is transition relation. We will construct predictable nondeterministic Turing machine M',
+	which will accept the same language - thus answering question from task positively.
+    \\
+    
+    Before we will start with formal definition of a equivalent predictable machine, we will
+    show some intuition. Predictable machine will move back and forth between a beginning
+    and a terminating character on the tape, at each turn pushing terminating character
+    one cell further. This motion is independent of the word. On the tape, it will mark with
+    special character position on which original machine M would be. Whenever predictable
+    machine would see this special head symbol, it can make nondeterministic transition,
+    according to the rules of the original machine. If predictable machine is going left,
+    it can choose from transitions in the left direction, if it is going right - it uses
+    transitions to the right of the original machine. If head would stay in place - we
+    can advance state of M when moving in either direction.
+    
+    Once every full cycle (going to the terminal symbol on the tape and to the beginning), 
+    our predictable machine will have a chance to make the same move as original machine M
+    would have. If $f(n)$ bounds the number of steps for M for input size n, then because
+    we need to simulate $f(n)$ steps, and simulating it requires $O(f(n))$ steps,
+    predictable machine runs in time $O(f(n)^2)$.
+    \\
+    
+    Now we will proceede to a formal definition.
+    As alphabet we will use $\Sigma' = \Sigma \times Term \times H$, where $Term$ and
+    $H$ are binary alphabets, such that $\Sigma \cap Term \cap H = \emptyset$. Aas blank 
+    $b' = (b, 0_{Term}, 0_H)$ - as ones
+    and zeroes we indicate whether symbol is terminal and where 
+    the phantom head of machine M is. As state we will use
+    $Q' = Q \times \{ L, R, T, UL, UR \}$ 
+    - the state
+    of M, along with information whether we move left or right and additional states when
+    terminal symbol is pushed further on the tape and for updating head marker.
+    The initial state would be $i' = (i, R)$.
+    Accepting states are those for which Q component of state is accepting in M.
+    \\
+    
+    Finally we can describe transitions. When on the tape we see a letter
+    $ \sigma \times 1_{Term} \times h $ for any $\sigma$ and h, 
+    M' changes terminal marker to $0_T$, changes state
+    information to $Q \times T$ (from $Q \times info$). When in state $Q \times T$, it writes
+    terminal symbol on tape (letter from sigma and head marker can by anything), stays in
+    place and changes state to $Q \times L$. When in state $Q \times UL$, head marker
+    is set to one and state changes to $Q \times L$; head does not move.
+    For $UR$ behaviour is analogous. 
+    When at the beginning of tape 
+    (marked with special letter), it changes
+    only movement info to R(ight). Whenever movement info is L, machine head moves left,
+    and for R it moves right - so movement does not depend on the input word.
+    When on the tape we do not see head marker, we do not change letter - in states
+    $Q \times \{ L, R \}$. When M' does see head marker and is moving left, it can choose
+    a rule from transitions of M which result in M head moving left or staying in place
+    - for transition $(a, Q_1) -> (b, Q_2, Left)$, we change $(a, h, 0)$ to $(b, 0, 0)$,
+    and state to $Q_2 \times UL$. For movement info behaviour is analogous.
+    Additionally we might add initial state, to mark first letter on tape as terminal
+    and then transition to $(i, R)$. State $(Q, info)$ is accepting when Q is accepting in M.
+    \\
+    
+    Now we will check that such machine recognizes the same language. If there is an
+    accepting path in machine M, our machine can executed its transitions whenever it is
+    over letter marked as head and moving in the correct direction. Our machine moves
+    over each cell possibly infinitely often in either direction, so it will always be
+    possible to execute a step of M. Thus, if M recognizes a word, M' also. Conversly,
+    if M' recognizes a word, it is because Q part of state reached an accepting state.
+    The Q part of state of M' changes only on transitions derived from M, so one can
+    translate head marker movements of M' into head movements of M - with state and letter
+    transitions directly extracted from M' transition.
+    \\
+    
+    Time complexity of such M' is at most $O(f(n)^2)$ - since for each terminal marker
+    movement we can execute one step of M, its position index is bounded by $f(n)$. Thus,
+    simulating each step of M takes at most $2f(n)$ steps of M', and because we need to
+    simulate $f(n)$ steps of M, number of M' moves is $O(f(n)^2)$, which is polynomial
+    in terms of $f(n)$.
+
+
+\end{homeworkProblem}
+
+\pagebreak
+
+\begin{homeworkProblem}[2]
+
+	We start by proving following lemma:
+	
+	\textbf{Lemma}
+	
+	If $f: \Sigma^{*} \rightarrow \Gamma^{*}$ is a nonabbreviating morphism,
+	then $f(\mathcal{P}) \subseteq \mathcal{NP}$
+	\\
+	
+	\textbf{Lemma proof}
+	
+	Let us take any nonabbreviating morphism f and any $L \in \mathcal{P}$. We will use
+	verifier-based definition of $\mathcal{NP}$. Let us take any
+	$w \in f(L)$. Witness can be any word $v \in L$, such that $f(v) = w$. Indeed, given
+	such witness v, we can easily construct a deterministic Turing machine that will
+	apply morphism letter by letter and check if $f(v) = w$ truly holds.
+	It is important to note that because morphism does not remove letters, witness' length
+	must be linear (so also polynomial) with respect to morphed word size.
+	\\	
+	
+	\textbf{Main Solution}
+	
+	We will prove two implications.
+	\\
+
+	\textbf{$\mathcal{NP} = \mathcal{P} \implies \mathcal{P}$ closed on morphisms}
+	\\
+		
+	Let f by any nonabbreviating morphism. 
+	Let us assume that $\mathcal{P} = \mathcal{NP}$.
+	Then from lemma we have:
+	
+	\[ f(\mathcal{P}) \subseteq \mathcal{NP} = \mathcal{P} \]
+	
+	Which gives us $f(\mathcal{P}) \subseteq \mathcal{P}$. 
+	Since $f$ was arbitrary, it follows
+	that $\mathcal{P}$ is closed under images of nonabbreviating  morphisms, because identity
+	morphisms always give us the original class.
+	\\
+	
+	\textbf{$\mathcal{P}$ closed on morphisms $\implies \mathcal{NP} = \mathcal{P}$}
+	\\
+	
+	Let us take a 3-SAT problem. For every formula with n clauses, one can imagine a witness
+	of size $3n$, which contains values of consecutive variables in clauses - first three
+	contain values of variables inside first clause and so forth. We also require that
+	witness is written with a binary alphabet $A$ disjoint with the alphabet of clauses $C$.
+	Such witness definition redundant, but it is clear that one can in polynomial 
+	time check the it against the clauses. We will denote this $3-SAT$ language with
+	such witnesses as L.
+	\\
+	
+	Now let us take a morphism on L, which on alphabet $C$ of clauses will be an identity,
+	and it will map each of two witness letters from $A$ into the same symbol $\# \notin C$. 
+	Because of our assumption, $f(L) \in \mathcal{P}$.
+	\\
+	
+	Now let us take any $3-SAT$ instance written in alphabet $C$ with n clauses.
+	We construct a
+	deterministic machine, that will append $3n$ hash symbols at the end of it, return to
+	the beginning of the word, and then act as a machine for morphed language and return
+	its output. All steps can be done in deterministic polynomial time. We will show
+	that machine described here accepts only $3-SAT$ instances that can be satisfied.
+	But before we begin - our intuition is that given a $3-SAT$ instance, we can easily
+	append hash symbols to its end. So after applying morphism word contains no more
+	'information', then the $3-SAT$ clauses itself. Thus we expect it to 
+	also be $\mathcal{NP}-complete$.
+	\\
+	
+	$3-SAT$ can be satisfied if and only if we have a witness. The witness can be written
+	in the form specified above. Existence of a witness is equivalent to the fact that
+	a word $w$ of the form $3-SAT$ clauses follwed by a witness is in L. 
+	And this is equivalent to the fact, that $f(w) \in f(L)$. The last statement
+	does not depend on the witness, thus it is sufficient to check if clauses followed
+	by hashes are in $f(L)$.
+	\\
+	
+	So if $\mathcal{P}$ is closed on nonabbreviating morphisms, then $3-SAT \in \mathcal{P}$.
+	Because $3-SAT$ is a $\mathcal{NP}-hard$ problem, we conclude that 
+	$\mathcal{P} = \mathcal{NP}$.
+	\\
+	
+	Thus, the two implications give us equivalence of statements from task description.
+	
+
+\end{homeworkProblem}
+
+
+\pagebreak
+
+\end{document}

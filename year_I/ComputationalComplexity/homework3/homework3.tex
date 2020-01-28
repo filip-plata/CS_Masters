@@ -1,0 +1,288 @@
+\documentclass{article}
+
+\usepackage{fancyhdr}
+\usepackage{extramarks}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{tikz}
+\usepackage[plain]{algorithm}
+\usepackage{algpseudocode}
+
+\usetikzlibrary{automata,positioning}
+
+%
+% Basic Document Settings
+%
+
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+\headsep=0.25in
+
+\linespread{1.1}
+
+\pagestyle{fancy}
+\lhead{\hmwkAuthorName}
+\chead{\hmwkClass\ : \hmwkTitle}
+\rhead{\firstxmark}
+\lfoot{\lastxmark}
+\cfoot{\thepage}
+
+\renewcommand\headrulewidth{0.4pt}
+\renewcommand\footrulewidth{0.4pt}
+
+\setlength\parindent{0pt}
+
+%
+% Create Problem Sections
+%
+
+\newcommand{\enterProblemHeader}[1]{
+    \nobreak\extramarks{}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+    \nobreak\extramarks{Problem \arabic{#1} (continued)}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+}
+
+\newcommand{\exitProblemHeader}[1]{
+    \nobreak\extramarks{Problem \arabic{#1} (continued)}{Problem \arabic{#1} continued on next page\ldots}\nobreak{}
+    \stepcounter{#1}
+    \nobreak\extramarks{Problem \arabic{#1}}{}\nobreak{}
+}
+
+\setcounter{secnumdepth}{0}
+\newcounter{partCounter}
+\newcounter{homeworkProblemCounter}
+\setcounter{homeworkProblemCounter}{1}
+\nobreak\extramarks{Problem \arabic{homeworkProblemCounter}}{}\nobreak{}
+
+%
+% Homework Problem Environment
+%
+% This environment takes an optional argument. When given, it will adjust the
+% problem counter. This is useful for when the problems given for your
+% assignment aren't sequential. See the last 3 problems of this template for an
+% example.
+%
+\newenvironment{homeworkProblem}[1][-1]{
+    \ifnum#1>0
+        \setcounter{homeworkProblemCounter}{#1}
+    \fi
+    \section{Problem \arabic{homeworkProblemCounter}}
+    \setcounter{partCounter}{1}
+    \enterProblemHeader{homeworkProblemCounter}
+}{
+    \exitProblemHeader{homeworkProblemCounter}
+}
+
+%
+% Homework Details
+%   - Title
+%   - Due date
+%   - Class
+%   - Section/Time
+%   - Instructor
+%   - Author
+%
+
+\newcommand{\hmwkTitle}{Homework\ \#3}
+\newcommand{\hmwkDueDate}{January 27, 2020}
+\newcommand{\hmwkClass}{Computational Complexity}
+\newcommand{\hmwkAuthorName}{\textbf{Filip Plata}}
+
+%
+% Title Page
+%
+
+\title{
+    \vspace{2in}
+    \textmd{\textbf{\hmwkClass:\ \hmwkTitle}}\\
+    \normalsize\vspace{0.1in}\small{Due\ on\ \hmwkDueDate\ at 23:59}\\
+    \vspace{3in}
+}
+
+\author{\hmwkAuthorName}
+\date{\today}
+
+\renewcommand{\part}[1]{\textbf{\large Part \Alph{partCounter}}\stepcounter{partCounter}\\}
+
+%
+% Various Helper Commands
+%
+
+% Useful for algorithms
+\newcommand{\alg}[1]{\textsc{\bfseries \footnotesize #1}}
+
+% For derivatives
+\newcommand{\deriv}[1]{\frac{\mathrm{d}}{\mathrm{d}x} (#1)}
+
+% For partial derivatives
+\newcommand{\pderiv}[2]{\frac{\partial}{\partial #1} (#2)}
+
+% Integral dx
+\newcommand{\dx}{\mathrm{d}x}
+
+% Alias for the Solution section header
+\newcommand{\solution}{\textbf{\large Solution}}
+
+% Probability commands: Expectation, Variance, Covariance, Bias
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\Bias}{\mathrm{Bias}}
+
+\begin{document}
+
+\maketitle
+
+\pagebreak
+
+\begin{homeworkProblem}[5]
+
+    \textbf{Main Solution}
+    \\
+    
+    We will describe a recursive algorithm, that will solve the
+    problem in polynomial time. We will uses polynomial primality test as
+    a black box, and we will use SAT solver to extract some nontrivial factorization
+    from composite numbers.
+    \\
+    
+    We are given a number $n$ with $k$ bits and $m$ primes factors in total (summing all 
+    the exponents). 
+    Let us denote by $T(n)$ the highest
+    possible number of factorization subroutine calls, where at each level we 
+    will obtain some
+    non-trivial (so no one times whole number) factorization. We will later prove that 
+    $T(n) \leq m - 1$, thus if obtaining any non-trivial factorization could be done
+    in polynomial time, the whole factorization can be done in such time.
+    \\
+    
+    We will begin with more formal description of the algorithm. We shall start with
+    a polynomial algorithm for obtaining non-trivial factorization. We assume our
+    input is a composite number $n$, and we want to find $a \cdot b = n$, such that
+  	$a \neq 1, b \neq 1$. Let us again by $k$ denote number of bits in $n$. Let us
+  	imagine multiplication of two $k-bit$ numbers - $x_1, ..., x_k$ and $y_1, ..., y_k$
+  	- and it at most $2k-bit$ result $z_1, ..., z_{2k}$. We will construct a formula $\Phi$,
+  	that will be satisfiable only when $x \cdot y = n, x \neq 1, y \neq 1$. 
+  	We only need $\Phi$ to be polynomial in size wrt. $k$ - then using oracle, a possible
+  	factorization can be guessed one bit at a time, resulting in polynomial algorithm
+  	which outputs some factorization into two factors.
+  	On the other hand, because $n$ is composite, we know $\Phi$ can be satisfied. We shall
+  	change perspective a bit. We know from classes, that there is a polynomial size
+  	circuit, using gates with binary input, that performs multiplication. Thus, for every
+  	bit of output, we can extract a boolean formula describing it, which size is less
+  	than total number of gates - which means also polynomial. So we can construct such
+  	formula $\Phi$, by having a formula for every bit of $z$, with additional few operations
+  	to ensure $z_i = n_i$ ($i-th$ bit of $n$, this could be done as xor). Then, we need
+  	to perform an `and` with formulas which exclude ones, to obtain $\Phi$.
+  	\\
+  	
+  	We have a polynomial algorithm for finding a non-trivial factorization for composite
+  	numbers. Our main algorithm will be recursive, outputting a list of factors and powers
+  	(output will be polynomial wrt. input). It will first check if input is a prime. If so,
+  	we have a factorization. If not, it will call factorization primitve described above.
+  	Then, it will call recursively for each factor, and merge respective output lists.
+  	Merging of the lists can be done in quadratic time (on Turing machine), because they
+  	are sorted. So the main concern for complexity are recursive calls and their number.
+  	We will prove inequality from the beginning, that $T(n) \leq m - 1$, where m is total
+  	count of prime factors for number $n$. This will be by induction, assuming it is true
+  	for every smaller number then some threshold $n$. For prime numbers, it is obvious, we do
+  	not call factorization. For a compound number, after calling factorization we get two numbers
+  	$x, y$, smaller then $n$. Thus, by induction we know that $T(x) \leq m_x - 1$ and
+  	$T(y) \leq m_y - 1$, where $m_x, m_y$ are respective totals of prime factors for $x, y$.
+  	Because $m_x + m_y = m$, we have:
+
+	\[ T(n) \leq 1 + T(x) + T(y) \leq 1 + (m_x - 1) + (m_y - 1) = m - 1 \]
+	
+	which concludes the prove of inequality.
+	
+	It means our algorithm calls factorization subroutine at most this many times, as it has
+	prime factors. Number of prime factors is bounded by $\log_2 n \leq k + 1$.
+	Then, it calls prime checking
+	subroutine also at most this many times - because each time this is done we get new 
+	prime factor. 
+	Also merging is done once for every factorization subroutine call.
+	Because every of those subroutines can be done in polynomial time wrt. $k$, the whole
+	algorithm is k times slower than sum of those three complexity bounds, which is still
+	a polynomial.
+	\\
+	
+	This concludes the proof.
+
+
+\end{homeworkProblem}
+
+\pagebreak
+
+\begin{homeworkProblem}[6]
+
+	\textbf{Common remarks}
+	
+	Let us by $B(w, r)$ denote a ball in metric
+	space of words with Hamming distance. We will provide a bound for the number of 
+	words in such ball for a word $w$ and radius $r$. We 
+	begin by noting we can choose at most $|w|\choose r$ positions, and then any subset
+	of which we have $2^r$, to arrive at any possible word in $B(w, r)$. We may count
+	each word many times, but we only need an upper bound. After multiplication
+	we arrive at the result that size of $B(w, r)$ is polynomial wrt. $|w|$,
+	because $r$ is a constant.
+	\\
+	
+	We will assume language $L$ and number $r$ ar given from now on.
+	\\
+	
+	\textbf{Main Solution for a)}
+	\\
+	
+	Now we will show an algorithm which will answer queries for language $B(L, r)$. Given
+	a word $w$, for every word in $B(w, r)$ we run algorithm for language L, obtaining
+	some answers. If we ever see a YES answer, we know some word in a ball is in L,
+	thus via symmetry of distance our word w is in $B(L, r)$. If we only see NO, we
+	return NO. Thus, if $w \notin B(L, r)$, we can only see NO answers on elements of
+	$B(w, r)$ and our algorithm will always return NO, as we require of algorithms from
+	$\mathcal{RP}$. On the other hand if $w \in B(L, r)$, we know there is at least one
+	word in the ball, for which we had the probability of $\frac{1}{2}$ to return YES.
+	So we can bound the probablity for YES as at least $\frac{1}{2 \cdot | B(w, r) |}$.
+	Our algorithm runs a polynomial algorithm polynomially many times, which means it
+	is still polynomial. To increase the probability, we run the combined algorithm 
+	$\Theta(|B(w, r)|)$ times. If we run algorithm $u$ times, we achive probability of
+	$1 - (1 - \frac{1}{2 \cdot | B(w, r) |}) ^ {u}$. From Bernoulli inequality we obtain:
+
+	\[ (1 - \frac{1}{2 \cdot | B(w, r) |}) ^ {u} \leq \frac{1}{1 + \frac{u}{2 \cdot | B(w, r) |}} \]
+	\[ 1 - (1 - \frac{1}{2 \cdot | B(w, r) |}) ^ {u} \geq 1  - \frac{1}{1 + \frac{u}{2 \cdot | B(w, r) |}} \]
+	
+	Which means it is sufficient to take $u = 2 \cdot |B(w, r)|$ to surpass the
+	threshold of $\frac{1}{2}$. Our initial remark was that $|B(w, r)|$ is a polynomial
+	wrt. $|w|$, which means we only need again to run combined algorithm polynomial
+	number of times to reach required accuracy. This gives us a polynomial algorithm
+	for $B(L, r)$, which has large enough probability threshold, which means that
+	$B(L, r) \in \mathcal{RP}$.
+	\\
+	
+	\textbf{Main Solution for b)}
+	\\
+	
+	We will use similar idea as in \textbf{a)}. We will describe an algorithm for $B(L, r)$, proving it is in $co\mathcal{RP}$. For every word in ball $B(w, r)$, we run
+	algorithm for language $L$ for $k$ times. We look at results for each word separately.
+	If for some word $w'$ we see at least one NO, we know $w' \notin L$. If every result is YES for $w'$,
+	we assume $w' \in L$, and thus $w \in B(L, r)$. If for every $w' \in B(w, r)$ we obtain
+	have obtained at least one NO, we know for sure that $w \notin B(L, r)$. Under this scheme, if $w \in B(L, r)$,
+	there is a $w' \in L$ in the ball, which will return always YES, and thus we will always
+	assign YES as output of the main algorithm. If $w \notin B(L, r)$, assuming independence of algorithm runs,
+	we get a probability of NO at least:
+	
+	\[ (1 - (\frac{1}{2}) ^ k) ^ {|B(w, r)|} \geq 1 - \frac{|B(w, r)|}{2^k} \]
+	
+	where we have used the Bernoulli inequality. This means $k$ of the order of $|B(w, r)|$
+	is more then enough to achieve probability of at least $\frac{1}{2}$. Because we require
+	$k \cdot |B(w, r)|$ runs of a polynomial algorithm, the combined algorithm is still polynomial
+	in time. Thus, $B(L, r) \in co\mathcal{RP}$, as required.
+
+\end{homeworkProblem}
+
+
+\pagebreak
+
+\end{document}
