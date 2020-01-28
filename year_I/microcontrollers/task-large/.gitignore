@@ -1,0 +1,6 @@
+*.elf
+*.bin
+*.o
+*.a
+target
+cmake-build-*
