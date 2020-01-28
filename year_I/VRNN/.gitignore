@@ -1,0 +1,5 @@
+data-static
+env
+*.json
+*.h5
+venv
