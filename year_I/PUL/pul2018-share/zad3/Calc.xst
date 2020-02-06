@@ -1,0 +1,1 @@
+run -ifn Calc.prj -p xc3s100e-4-cp132 -top Calc -ofn Calc -opt_mode SPEED -opt_level 1

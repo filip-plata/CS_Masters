@@ -1,0 +1,1 @@
+run -ifn stoper.prj -p xc3s100e-4-cp132 -top stoper -ofn stoper -opt_mode SPEED -opt_level 1

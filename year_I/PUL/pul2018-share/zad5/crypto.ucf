@@ -1,0 +1,29 @@
+# clock pin for Basys2 Board
+NET "CLK" LOC = "B8"; # Bank = 0, Signal name = MCLK
+NET "CLK" CLOCK_DEDICATED_ROUTE = TRUE;
+
+# EPP
+NET "EPP_ASTB" LOC = "F2"; # Bank = 3
+NET "EPP_DSTB" LOC = "F1"; # Bank = 3
+NET "EPP_WR"       LOC = "C2"; # Bank = 3
+
+NET "EPP_WAIT" LOC = "D2"; # Bank = 3
+
+
+NET "EPP_D<0>" LOC = "N2"; # Bank = 2
+NET "EPP_D<1>" LOC = "M2"; # Bank = 2
+NET "EPP_D<2>" LOC = "M1"; # Bank = 3
+NET "EPP_D<3>" LOC = "L1"; # Bank = 3
+NET "EPP_D<4>" LOC = "L2"; # Bank = 3
+NET "EPP_D<5>" LOC = "H2"; # Bank = 3
+NET "EPP_D<6>" LOC = "H1"; # Bank = 3
+NET "EPP_D<7>" LOC = "H3"; # Bank = 3
+
+NET "Led<7>" LOC = "G1" ; # Bank = 3, Signal name = LD7
+NET "Led<6>" LOC = "P4" ; # Bank = 2, Signal name = LD6
+NET "Led<5>" LOC = "N4" ;  # Bank = 2, Signal name = LD5
+NET "Led<4>" LOC = "N5" ;  # Bank = 2, Signal name = LD4
+NET "Led<3>" LOC = "P6" ; # Bank = 2, Signal name = LD3
+NET "Led<2>" LOC = "P7" ; # Bank = 3, Signal name = LD2
+NET "Led<1>" LOC = "M11" ; # Bank = 2, Signal name = LD1
+NET "Led<0>" LOC = "M5" ;  # Bank = 2, Signal name = LD0
