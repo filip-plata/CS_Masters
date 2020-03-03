@@ -1,0 +1,49 @@
+/**
+ * Simple (and dumb) implementation of the SophisticatedSensor component.
+ */
+
+module SimpleSophisticatedSensorP {
+  provides interface Read<uint16_t> as ReadReading;
+  provides interface ReadRecipient;
+}
+implementation {
+  bool readingValue = FALSE;
+  bool readingRecipient = FALSE;
+  uint16_t readings = 0;
+
+  task void readValue() {
+    readingValue = FALSE;
+    signal ReadReading.readDone(SUCCESS, 100 * TOS_NODE_ID + readings++);
+  }
+
+  task void readRecipient() {
+    uint16_t recipientId;
+    uint32_t recipient_long, recipient_lat;
+
+    readingRecipient = FALSE;
+
+    RECIPIENT_SWITCH_DEVICE;
+
+    // Let mote X be placed at [X, X]:
+    signal ReadRecipient.readDone(SUCCESS, recipientId, recipient_long, recipient_lat);
+  }
+
+  command error_t ReadReading.read() {
+    if (readingValue)
+      return EBUSY;
+
+    readingValue = TRUE;
+    post readValue();
+    return SUCCESS;
+  }
+
+  command error_t ReadRecipient.read() {
+    if (readingRecipient)
+      return EBUSY;
+
+    readingRecipient = TRUE;
+    post readRecipient();
+    return SUCCESS;
+  }
+
+}

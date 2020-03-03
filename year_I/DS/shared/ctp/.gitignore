@@ -1,0 +1,6 @@
+*.a
+obj_sky
+*.map
+*.sky
+symbols.c
+symbols.h
