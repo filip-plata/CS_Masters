@@ -1,0 +1,2 @@
+In the first step, I mean that there is a polynomial number of valuations
+of all p_i together, and we perform the following steps for each of them

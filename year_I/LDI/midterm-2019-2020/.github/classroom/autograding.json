@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "check name",
+      "setup": "",
+      "run": "./check_name.sh",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+*.agdai
+MAlonzo/**
+.DS_Store
+test.lagda.md
+result01.txt
+result02.txt
+result03.txt
+result04.txt
+result05.txt
+result06.txt
+result07.txt
+result08.txt
+result09.txt
+result10.txt
+results.txt
+submission.clean.lagda.md

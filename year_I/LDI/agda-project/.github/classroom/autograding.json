@@ -1,0 +1,117 @@
+{
+  "tests": [
+    {
+      "name": "p01",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result01.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+    {
+      "name": "p02",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result02.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p03",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result03.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p04",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result04.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p05",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result05.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p06",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result06.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p07",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result07.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p08",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result08.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p09",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result09.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+        {
+      "name": "p10",
+      "setup": "",
+      "run": "env -i HOME=/home/runner make result10.txt",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 1
+    },
+    {
+      "name": "check name",
+      "setup": "",
+      "run": "/bin/bash ./check_name.sh",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": null
+    }
+  ]
+}
+
+
+

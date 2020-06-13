@@ -1,0 +1,40 @@
+name: GitHub Classroom Workflow
+on:
+    push:
+        branches: [ master ]
+env:
+   HOME: /home/runner
+   PATH: /opt/cabal/3.0/bin:/opt/ghc/8.6.5/bin:/usr/share/rust/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/home/runner/.dotnet/tools:/home/runner/.config/composer/vendor/bin
+
+jobs:
+  build:
+    name: Autograding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install cabal
+        run: sudo apt-get install ghc cabal-install
+      - name: Cabal update
+        run: cabal update
+      - name: Install alex
+        run: cabal install alex
+      - name: Install happy
+        run: cabal install happy
+      - name: Install agda
+        run: sudo apt-get install agda
+      - name: Install agda-mode
+        run: sudo apt-get install agda-mode
+      - name: Install agda-stdlib
+        run: sudo apt-get install agda-stdlib
+      - name: set environment variables
+        uses: allenevans/set-env@v1.0.0
+        with:
+            overwrite: true
+            HOME: /home/runner
+            PATH: /opt/cabal/3.0/bin:/opt/ghc/8.6.5/bin:/usr/share/rust/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/home/runner/.dotnet/tools:/home/runner/.config/composer/vendor/bin
+      - name: set env
+        run: for v in `cat env` ; do echo "::set-env name=${v%%=*}::${v##*=}" ; done
+      - uses: education/autograding@v1
+        env:
+            HOME: /home/runner
+            PATH: /opt/cabal/3.0/bin:/opt/ghc/8.6.5/bin:/usr/share/rust/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/home/runner/.dotnet/tools:/home/runner/.config/composer/vendor/bin
