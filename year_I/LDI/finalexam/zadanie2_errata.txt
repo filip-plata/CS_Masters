@@ -1,0 +1,3 @@
+Definiując psi na końcu, należy do warunku dopisać, że aplikowanie
+f (<=k razy) do a_i oraz a_j daje różne wartości, gdyż oczywiście same
+warunki a_i /= a_j nie wymuszają, że to różne cykle.
